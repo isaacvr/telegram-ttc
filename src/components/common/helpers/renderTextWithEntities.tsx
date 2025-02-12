@@ -590,6 +590,25 @@ function processEntity({
           noPlay={noCustomEmojiPlayback}
         />
       );
+    // Markdown
+    case ApiMessageEntityTypes.Highlight:
+      return <mark data-entity-type={entity.type}>{renderNestedMessagePart()}</mark>;
+    case ApiMessageEntityTypes.Subscript:
+      return <sub data-entity-type={entity.type}>{renderNestedMessagePart()}</sub>;
+    case ApiMessageEntityTypes.Superscript:
+      return <sup data-entity-type={entity.type}>{renderNestedMessagePart()}</sup>;
+    case ApiMessageEntityTypes.Heading1:
+      return <b className="heading heading-1" data-entity-type={entity.type}>{renderNestedMessagePart()}</b>;
+    case ApiMessageEntityTypes.Heading2:
+      return <b className="heading heading-2" data-entity-type={entity.type}>{renderNestedMessagePart()}</b>;
+    case ApiMessageEntityTypes.Heading3:
+      return <b className="heading heading-3" data-entity-type={entity.type}>{renderNestedMessagePart()}</b>;
+    case ApiMessageEntityTypes.Heading4:
+      return <b className="heading heading-4" data-entity-type={entity.type}>{renderNestedMessagePart()}</b>;
+    case ApiMessageEntityTypes.Heading5:
+      return <b className="heading heading-5" data-entity-type={entity.type}>{renderNestedMessagePart()}</b>;
+    case ApiMessageEntityTypes.Heading6:
+      return <b className="heading heading-6" data-entity-type={entity.type}>{renderNestedMessagePart()}</b>;
     default:
       return renderNestedMessagePart();
   }
@@ -638,7 +657,7 @@ function processEntityAsHtml(
     case ApiMessageEntityTypes.TextUrl:
       return `<a
         class="text-entity-link"
-        href=${getLinkUrl(rawEntityText, entity)}
+        href="${getLinkUrl(rawEntityText, entity)}"
         data-entity-type="${entity.type}"
         dir="auto"
       >${renderedContent}</a>`;
@@ -654,6 +673,52 @@ function processEntityAsHtml(
         class="blockquote"
         data-entity-type="${ApiMessageEntityTypes.Blockquote}"
         >${renderedContent}</blockquote>`;
+     // Markdown
+     case ApiMessageEntityTypes.Highlight:
+      return `<mark
+        class="highlight"
+        data-entity-type="${ApiMessageEntityTypes.Highlight}"
+        >${renderedContent}</mark>`;
+    case ApiMessageEntityTypes.Subscript:
+      return `<sub
+        class="subscript"
+        data-entity-type="${ApiMessageEntityTypes.Subscript}"
+        >${renderedContent}</sub>`;
+    case ApiMessageEntityTypes.Superscript:
+      return `<sup
+        class="superscript"
+        data-entity-type="${ApiMessageEntityTypes.Superscript}"
+        >${renderedContent}</sup>`;
+    case ApiMessageEntityTypes.Heading1:
+      return `<b
+        class="heading heading-1"
+        data-entity-type="${ApiMessageEntityTypes.Heading1}"
+        >${renderedContent}</b>`;
+    case ApiMessageEntityTypes.Heading2:
+      return `<b
+        class="heading heading-2"
+        data-entity-type="${ApiMessageEntityTypes.Heading2}"
+        >${renderedContent}</b>`;
+    case ApiMessageEntityTypes.Heading3:
+      return `<b
+        class="heading heading-3"
+        data-entity-type="${ApiMessageEntityTypes.Heading3}"
+        >${renderedContent}</b>`;
+    case ApiMessageEntityTypes.Heading4:
+      return `<b
+        class="heading heading-4"
+        data-entity-type="${ApiMessageEntityTypes.Heading4}"
+        >${renderedContent}</b>`;
+    case ApiMessageEntityTypes.Heading5:
+      return `<b
+        class="heading heading-5"
+        data-entity-type="${ApiMessageEntityTypes.Heading5}"
+        >${renderedContent}</b>`;
+    case ApiMessageEntityTypes.Heading6:
+      return `<b
+        class="heading heading-6"
+        data-entity-type="${ApiMessageEntityTypes.Heading6}"
+        >${renderedContent}</b>`;
     default:
       return renderedContent;
   }

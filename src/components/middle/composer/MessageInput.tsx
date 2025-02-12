@@ -1,50 +1,63 @@
-import type { ChangeEvent, RefObject } from 'react';
-import type { FC } from '../../../lib/teact/teact';
+import type { ChangeEvent, RefObject } from "react";
+import type { FC } from "../../../lib/teact/teact";
 import React, {
   getIsHeavyAnimating,
-  memo, useEffect, useLayoutEffect,
-  useRef, useState,
-} from '../../../lib/teact/teact';
-import { getActions, withGlobal } from '../../../global';
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "../../../lib/teact/teact";
+import { getActions, withGlobal } from "../../../global";
 
-import type { ApiInputMessageReplyInfo } from '../../../api/types';
-import type { IAnchorPosition, ISettings, ThreadId } from '../../../types';
-import type { Signal } from '../../../util/signals';
+import type { ApiInputMessageReplyInfo } from "../../../api/types";
+import type { IAnchorPosition, ISettings, ThreadId } from "../../../types";
+import type { Signal } from "../../../util/signals";
 
-import { EDITABLE_INPUT_ID } from '../../../config';
-import { requestForcedReflow, requestMutation } from '../../../lib/fasterdom/fasterdom';
-import { selectCanPlayAnimatedEmojis, selectDraft, selectIsInSelectMode } from '../../../global/selectors';
-import buildClassName from '../../../util/buildClassName';
-import captureKeyboardListeners from '../../../util/captureKeyboardListeners';
-import { getIsDirectTextInputDisabled } from '../../../util/directInputManager';
-import parseEmojiOnlyString from '../../../util/emoji/parseEmojiOnlyString';
-import focusEditableElement from '../../../util/focusEditableElement';
-import { debounce } from '../../../util/schedulers';
+import { EDITABLE_INPUT_ID } from "../../../config";
 import {
-  IS_ANDROID, IS_EMOJI_SUPPORTED, IS_IOS, IS_TOUCH_ENV,
-} from '../../../util/windowEnvironment';
-import renderText from '../../common/helpers/renderText';
-import { isSelectionInsideInput } from './helpers/selection';
+  requestForcedReflow,
+  requestMutation,
+} from "../../../lib/fasterdom/fasterdom";
+import {
+  selectCanPlayAnimatedEmojis,
+  selectDraft,
+  selectIsInSelectMode,
+} from "../../../global/selectors";
+import buildClassName from "../../../util/buildClassName";
+import captureKeyboardListeners from "../../../util/captureKeyboardListeners";
+import { getIsDirectTextInputDisabled } from "../../../util/directInputManager";
+import parseEmojiOnlyString from "../../../util/emoji/parseEmojiOnlyString";
+import focusEditableElement from "../../../util/focusEditableElement";
+import { debounce } from "../../../util/schedulers";
+import {
+  IS_ANDROID,
+  IS_EMOJI_SUPPORTED,
+  IS_IOS,
+  IS_TOUCH_ENV,
+} from "../../../util/windowEnvironment";
+import renderText from "../../common/helpers/renderText";
+import { isSelectionInsideInput } from "./helpers/selection";
 
-import useAppLayout from '../../../hooks/useAppLayout';
-import useDerivedState from '../../../hooks/useDerivedState';
-import useFlag from '../../../hooks/useFlag';
-import useLastCallback from '../../../hooks/useLastCallback';
-import useOldLang from '../../../hooks/useOldLang';
-import useInputCustomEmojis from './hooks/useInputCustomEmojis';
+import useAppLayout from "../../../hooks/useAppLayout";
+import useDerivedState from "../../../hooks/useDerivedState";
+import useFlag from "../../../hooks/useFlag";
+import useLastCallback from "../../../hooks/useLastCallback";
+import useOldLang from "../../../hooks/useOldLang";
+import useInputCustomEmojis from "./hooks/useInputCustomEmojis";
 
-import Icon from '../../common/icons/Icon';
-import Button from '../../ui/Button';
-import TextTimer from '../../ui/TextTimer';
-import TextFormatter from './TextFormatter.async';
+import Icon from "../../common/icons/Icon";
+import Button from "../../ui/Button";
+import TextTimer from "../../ui/TextTimer";
+import TextFormatter from "./TextFormatter.async";
 
 const CONTEXT_MENU_CLOSE_DELAY_MS = 100;
 // Focus slows down animation, also it breaks transition layout in Chrome
 const FOCUS_DELAY_MS = 350;
 const TRANSITION_DURATION_FACTOR = 50;
 
-const SCROLLER_CLASS = 'input-scroller';
-const INPUT_WRAPPER_CLASS = 'message-input-wrapper';
+const SCROLLER_CLASS = "input-scroller";
+const INPUT_WRAPPER_CLASS = "message-input-wrapper";
 
 type OwnProps = {
   ref?: RefObject<HTMLDivElement>;
@@ -80,7 +93,7 @@ type OwnProps = {
 type StateProps = {
   replyInfo?: ApiInputMessageReplyInfo;
   isSelectModeActive?: boolean;
-  messageSendKeyCombo?: ISettings['messageSendKeyCombo'];
+  messageSendKeyCombo?: ISettings["messageSendKeyCombo"];
   canPlayAnimatedEmojis: boolean;
 };
 
@@ -91,9 +104,20 @@ const TAB_INDEX_PRIORITY_TIMEOUT = 2000;
 const SELECTION_RECALCULATE_DELAY_MS = 260;
 const TEXT_FORMATTER_SAFE_AREA_PX = 140;
 // For some reason Safari inserts `<br>` after user removes text from input
-const SAFARI_BR = '<br>';
+const SAFARI_BR = "<br>";
 const IGNORE_KEYS = [
-  'Esc', 'Escape', 'Enter', 'PageUp', 'PageDown', 'Meta', 'Alt', 'Ctrl', 'ArrowDown', 'ArrowUp', 'Control', 'Shift',
+  "Esc",
+  "Escape",
+  "Enter",
+  "PageUp",
+  "PageDown",
+  "Meta",
+  "Alt",
+  "Ctrl",
+  "ArrowDown",
+  "ArrowUp",
+  "Control",
+  "Shift",
 ];
 
 function clearSelection() {
@@ -170,17 +194,22 @@ const MessageInput: FC<OwnProps & StateProps> = ({
 
   const lang = useOldLang();
   const isContextMenuOpenRef = useRef(false);
-  const [isTextFormatterOpen, openTextFormatter, closeTextFormatter] = useFlag();
-  const [textFormatterAnchorPosition, setTextFormatterAnchorPosition] = useState<IAnchorPosition>();
+  const [isTextFormatterOpen, openTextFormatter, closeTextFormatter] =
+    useFlag();
+  const [textFormatterAnchorPosition, setTextFormatterAnchorPosition] =
+    useState<IAnchorPosition>();
   const [selectedRange, setSelectedRange] = useState<Range>();
-  const [isTextFormatterDisabled, setIsTextFormatterDisabled] = useState<boolean>(false);
+  const [isTextFormatterDisabled, setIsTextFormatterDisabled] =
+    useState<boolean>(false);
   const { isMobile } = useAppLayout();
   const isMobileDevice = isMobile && (IS_IOS || IS_ANDROID);
 
   const [shouldDisplayTimer, setShouldDisplayTimer] = useState(false);
 
   useEffect(() => {
-    setShouldDisplayTimer(Boolean(timedPlaceholderLangKey && timedPlaceholderDate));
+    setShouldDisplayTimer(
+      Boolean(timedPlaceholderLangKey && timedPlaceholderDate)
+    );
   }, [timedPlaceholderDate, timedPlaceholderLangKey]);
 
   const handleTimerEnd = useLastCallback(() => {
@@ -196,16 +225,22 @@ const MessageInput: FC<OwnProps & StateProps> = ({
     customEmojiPrefix,
     canPlayAnimatedEmojis,
     isReady,
-    isActive,
+    isActive
   );
 
   const maxInputHeight = isAttachmentModalInput
     ? MAX_ATTACHMENT_MODAL_INPUT_HEIGHT
-    : isStoryInput ? MAX_STORY_MODAL_INPUT_HEIGHT : (isMobile ? 256 : 416);
+    : isStoryInput
+    ? MAX_STORY_MODAL_INPUT_HEIGHT
+    : isMobile
+    ? 256
+    : 416;
   const updateInputHeight = useLastCallback((willSend = false) => {
     requestForcedReflow(() => {
-      const scroller = inputRef.current!.closest<HTMLDivElement>(`.${SCROLLER_CLASS}`)!;
-      const currentHeight = Number(scroller.style.height.replace('px', ''));
+      const scroller = inputRef.current!.closest<HTMLDivElement>(
+        `.${SCROLLER_CLASS}`
+      )!;
+      const currentHeight = Number(scroller.style.height.replace("px", ""));
       const clone = scrollerCloneRef.current!;
       const { scrollHeight } = clone;
       const newHeight = Math.min(scrollHeight, maxInputHeight);
@@ -218,11 +253,12 @@ const MessageInput: FC<OwnProps & StateProps> = ({
 
       function exec() {
         const transitionDuration = Math.round(
-          TRANSITION_DURATION_FACTOR * Math.log(Math.abs(newHeight - currentHeight)),
+          TRANSITION_DURATION_FACTOR *
+            Math.log(Math.abs(newHeight - currentHeight))
         );
         scroller.style.height = `${newHeight}px`;
         scroller.style.transitionDuration = `${transitionDuration}ms`;
-        scroller.classList.toggle('overflown', isOverflown);
+        scroller.classList.toggle("overflown", isOverflown);
       }
 
       if (willSend) {
@@ -242,7 +278,7 @@ const MessageInput: FC<OwnProps & StateProps> = ({
 
   const htmlRef = useRef(getHtml());
   useLayoutEffect(() => {
-    const html = isActive ? getHtml() : '';
+    const html = isActive ? getHtml() : "";
 
     if (html !== inputRef.current!.innerHTML) {
       inputRef.current!.innerHTML = html;
@@ -297,11 +333,14 @@ const MessageInput: FC<OwnProps & StateProps> = ({
     const selectionRange = selection.getRangeAt(0);
     const selectedText = selectionRange.toString().trim();
     if (
-      shouldSuppressTextFormatter
-      || !isSelectionInsideInput(selectionRange, editableInputId || EDITABLE_INPUT_ID)
-      || !selectedText
-      || parseEmojiOnlyString(selectedText)
-      || !selectionRange.START_TO_END
+      shouldSuppressTextFormatter ||
+      !isSelectionInsideInput(
+        selectionRange,
+        editableInputId || EDITABLE_INPUT_ID
+      ) ||
+      !selectedText ||
+      parseEmojiOnlyString(selectedText) ||
+      !selectionRange.START_TO_END
     ) {
       closeTextFormatter();
       return false;
@@ -321,9 +360,11 @@ const MessageInput: FC<OwnProps & StateProps> = ({
 
     const selectionRange = window.getSelection()!.getRangeAt(0);
     const selectionRect = selectionRange.getBoundingClientRect();
-    const scrollerRect = inputRef.current!.closest<HTMLDivElement>(`.${SCROLLER_CLASS}`)!.getBoundingClientRect();
+    const scrollerRect = inputRef
+      .current!.closest<HTMLDivElement>(`.${SCROLLER_CLASS}`)!
+      .getBoundingClientRect();
 
-    let x = (selectionRect.left + selectionRect.width / 2) - scrollerRect.left;
+    let x = selectionRect.left + selectionRect.width / 2 - scrollerRect.left;
 
     if (x < TEXT_FORMATTER_SAFE_AREA_PX) {
       x = TEXT_FORMATTER_SAFE_AREA_PX;
@@ -345,14 +386,20 @@ const MessageInput: FC<OwnProps & StateProps> = ({
       window.clearTimeout(selectionTimeoutRef.current);
     }
     // Small delay to allow browser properly recalculate selection
-    selectionTimeoutRef.current = window.setTimeout(processSelection, SELECTION_RECALCULATE_DELAY_MS);
+    selectionTimeoutRef.current = window.setTimeout(
+      processSelection,
+      SELECTION_RECALCULATE_DELAY_MS
+    );
   }
 
   function handleMouseDown(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
     if (e.button !== 2) {
-      const listenerEl = e.currentTarget.closest(`.${INPUT_WRAPPER_CLASS}`) || e.target;
+      const listenerEl =
+        e.currentTarget.closest(`.${INPUT_WRAPPER_CLASS}`) || e.target;
 
-      listenerEl.addEventListener('mouseup', processSelectionWithTimeout, { once: true });
+      listenerEl.addEventListener("mouseup", processSelectionWithTimeout, {
+        once: true,
+      });
       return;
     }
 
@@ -363,7 +410,11 @@ const MessageInput: FC<OwnProps & StateProps> = ({
     isContextMenuOpenRef.current = true;
 
     function handleCloseContextMenu(e2: KeyboardEvent | MouseEvent) {
-      if (e2 instanceof KeyboardEvent && e2.key !== 'Esc' && e2.key !== 'Escape') {
+      if (
+        e2 instanceof KeyboardEvent &&
+        e2.key !== "Esc" &&
+        e2.key !== "Escape"
+      ) {
         return;
       }
 
@@ -371,12 +422,12 @@ const MessageInput: FC<OwnProps & StateProps> = ({
         isContextMenuOpenRef.current = false;
       }, CONTEXT_MENU_CLOSE_DELAY_MS);
 
-      window.removeEventListener('keydown', handleCloseContextMenu);
-      window.removeEventListener('mousedown', handleCloseContextMenu);
+      window.removeEventListener("keydown", handleCloseContextMenu);
+      window.removeEventListener("mousedown", handleCloseContextMenu);
     }
 
-    document.addEventListener('mousedown', handleCloseContextMenu);
-    document.addEventListener('keydown', handleCloseContextMenu);
+    document.addEventListener("mousedown", handleCloseContextMenu);
+    document.addEventListener("keydown", handleCloseContextMenu);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
@@ -384,8 +435,10 @@ const MessageInput: FC<OwnProps & StateProps> = ({
     const { isComposing } = e;
 
     const html = getHtml();
+
     if (!isComposing && !html && (e.metaKey || e.ctrlKey)) {
-      const targetIndexDelta = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : undefined;
+      const targetIndexDelta =
+        e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : undefined;
       if (targetIndexDelta) {
         e.preventDefault();
 
@@ -394,39 +447,46 @@ const MessageInput: FC<OwnProps & StateProps> = ({
       }
     }
 
-    if (!isComposing && e.key === 'Enter' && !e.shiftKey) {
+    if (!isComposing && e.key === "Enter" && !e.shiftKey) {
       if (
-        !isMobileDevice
-        && (
-          (messageSendKeyCombo === 'enter' && !e.shiftKey)
-          || (messageSendKeyCombo === 'ctrl-enter' && (e.ctrlKey || e.metaKey))
-        )
+        !isMobileDevice &&
+        ((messageSendKeyCombo === "enter" && !e.shiftKey) ||
+          (messageSendKeyCombo === "ctrl-enter" && (e.ctrlKey || e.metaKey)))
       ) {
         e.preventDefault();
 
         closeTextFormatter();
         onSend();
       }
-    } else if (!isComposing && e.key === 'ArrowUp' && !html && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    } else if (
+      !isComposing &&
+      e.key === "ArrowUp" &&
+      !html &&
+      !e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey
+    ) {
       e.preventDefault();
       editLastMessage();
     } else {
-      e.target.addEventListener('keyup', processSelectionWithTimeout, { once: true });
+      e.target.addEventListener("keyup", processSelectionWithTimeout, {
+        once: true,
+      });
     }
   }
 
   function handleChange(e: ChangeEvent<HTMLDivElement>) {
     const { innerHTML, textContent } = e.currentTarget;
 
-    onUpdate(innerHTML === SAFARI_BR ? '' : innerHTML);
+    onUpdate(innerHTML === SAFARI_BR ? "" : innerHTML);
 
     // Reset focus on the input to remove any active styling when input is cleared
     if (
-      !IS_TOUCH_ENV
-      && (!textContent || !textContent.length)
+      !IS_TOUCH_ENV &&
+      (!textContent || !textContent.length) &&
       // When emojis are not supported, innerHTML contains an emoji img tag that doesn't exist in the textContext
-      && !(!IS_EMOJI_SUPPORTED && innerHTML.includes('emoji-small'))
-      && !(innerHTML.includes('custom-emoji'))
+      !(!IS_EMOJI_SUPPORTED && innerHTML.includes("emoji-small")) &&
+      !innerHTML.includes("custom-emoji")
     ) {
       const selection = window.getSelection()!;
       if (selection) {
@@ -437,7 +497,9 @@ const MessageInput: FC<OwnProps & StateProps> = ({
     }
   }
 
-  function handleAndroidContextMenu(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
+  function handleAndroidContextMenu(
+    e: React.MouseEvent<HTMLDivElement, MouseEvent>
+  ) {
     if (!checkSelection()) {
       return;
     }
@@ -455,7 +517,12 @@ const MessageInput: FC<OwnProps & StateProps> = ({
   }
 
   function handleClick() {
-    if (isAttachmentModalInput || canSendPlainText || (isStoryInput && isNeedPremium)) return;
+    if (
+      isAttachmentModalInput ||
+      canSendPlainText ||
+      (isStoryInput && isNeedPremium)
+    )
+      return;
     showAllowedMessageTypesNotification({ chatId });
   }
 
@@ -473,11 +540,11 @@ const MessageInput: FC<OwnProps & StateProps> = ({
 
   useEffect(() => {
     if (
-      !chatId
-      || editableInputId !== EDITABLE_INPUT_ID
-      || noFocusInterception
-      || isMobileDevice
-      || isSelectModeActive
+      !chatId ||
+      editableInputId !== EDITABLE_INPUT_ID ||
+      noFocusInterception ||
+      isMobileDevice ||
+      isSelectModeActive
     ) {
       return undefined;
     }
@@ -498,18 +565,21 @@ const MessageInput: FC<OwnProps & StateProps> = ({
       const isSelectionCollapsed = document.getSelection()?.isCollapsed;
 
       if (
-        ((key.startsWith('Arrow') || (e.shiftKey && key === 'Shift')) && !isSelectionCollapsed)
-        || (e.code === 'KeyC' && (e.ctrlKey || e.metaKey) && target.tagName !== 'INPUT')
+        ((key.startsWith("Arrow") || (e.shiftKey && key === "Shift")) &&
+          !isSelectionCollapsed) ||
+        (e.code === "KeyC" &&
+          (e.ctrlKey || e.metaKey) &&
+          target.tagName !== "INPUT")
       ) {
         return;
       }
 
       if (
-        input
-        && target !== input
-        && target.tagName !== 'INPUT'
-        && target.tagName !== 'TEXTAREA'
-        && !target.isContentEditable
+        input &&
+        target !== input &&
+        target.tagName !== "INPUT" &&
+        target.tagName !== "TEXTAREA" &&
+        !target.isContentEditable
       ) {
         focusEditableElement(input, true, true);
 
@@ -518,20 +588,31 @@ const MessageInput: FC<OwnProps & StateProps> = ({
       }
     };
 
-    document.addEventListener('keydown', handleDocumentKeyDown, true);
+    document.addEventListener("keydown", handleDocumentKeyDown, true);
 
     return () => {
-      document.removeEventListener('keydown', handleDocumentKeyDown, true);
+      document.removeEventListener("keydown", handleDocumentKeyDown, true);
     };
-  }, [chatId, editableInputId, isMobileDevice, isSelectModeActive, noFocusInterception]);
+  }, [
+    chatId,
+    editableInputId,
+    isMobileDevice,
+    isSelectModeActive,
+    noFocusInterception,
+  ]);
 
   useEffect(() => {
-    const captureFirstTab = debounce((e: KeyboardEvent) => {
-      if (e.key === 'Tab' && !getIsDirectTextInputDisabled()) {
-        e.preventDefault();
-        requestMutation(focusInput);
-      }
-    }, TAB_INDEX_PRIORITY_TIMEOUT, true, false);
+    const captureFirstTab = debounce(
+      (e: KeyboardEvent) => {
+        if (e.key === "Tab" && !getIsDirectTextInputDisabled()) {
+          e.preventDefault();
+          requestMutation(focusInput);
+        }
+      },
+      TAB_INDEX_PRIORITY_TIMEOUT,
+      true,
+      false
+    );
 
     return captureKeyboardListeners({ onTab: captureFirstTab });
   }, [focusInput]);
@@ -544,30 +625,46 @@ const MessageInput: FC<OwnProps & StateProps> = ({
     }
 
     if (shouldSuppressFocus) {
-      input.addEventListener('focus', suppressFocus);
+      input.addEventListener("focus", suppressFocus);
     }
 
     return () => {
-      input.removeEventListener('focus', suppressFocus);
+      input.removeEventListener("focus", suppressFocus);
     };
   }, [shouldSuppressFocus]);
 
-  const isTouched = useDerivedState(() => Boolean(isActive && getHtml()), [isActive, getHtml]);
-
-  const className = buildClassName(
-    'form-control allow-selection',
-    isTouched && 'touched',
-    shouldSuppressFocus && 'focus-disabled',
+  const isTouched = useDerivedState(
+    () => Boolean(isActive && getHtml()),
+    [isActive, getHtml]
   );
 
-  const inputScrollerContentClass = buildClassName('input-scroller-content', isNeedPremium && 'is-need-premium');
+  const className = buildClassName(
+    "form-control allow-selection",
+    isTouched && "touched",
+    shouldSuppressFocus && "focus-disabled"
+  );
+
+  const inputScrollerContentClass = buildClassName(
+    "input-scroller-content",
+    isNeedPremium && "is-need-premium"
+  );
 
   return (
-    <div id={id} onClick={shouldSuppressFocus ? onSuppressedFocus : undefined} dir={lang.isRtl ? 'rtl' : undefined}>
+    <div
+      id={id}
+      onClick={shouldSuppressFocus ? onSuppressedFocus : undefined}
+      dir={lang.isRtl ? "rtl" : undefined}
+    >
       <div
-        className={buildClassName('custom-scroll', SCROLLER_CLASS, isNeedPremium && 'is-need-premium')}
+        className={buildClassName(
+          "custom-scroll",
+          SCROLLER_CLASS,
+          isNeedPremium && "is-need-premium"
+        )}
         onScroll={onScroll}
-        onClick={!isAttachmentModalInput && !canSendPlainText ? handleClick : undefined}
+        onClick={
+          !isAttachmentModalInput && !canSendPlainText ? handleClick : undefined
+        }
       >
         <div className={inputScrollerContentClass}>
           <div
@@ -591,38 +688,59 @@ const MessageInput: FC<OwnProps & StateProps> = ({
           {!forcedPlaceholder && (
             <span
               className={buildClassName(
-                'placeholder-text',
-                !isAttachmentModalInput && !canSendPlainText && 'with-icon',
-                isNeedPremium && 'is-need-premium',
+                "placeholder-text",
+                !isAttachmentModalInput && !canSendPlainText && "with-icon",
+                isNeedPremium && "is-need-premium"
               )}
               dir="auto"
             >
-              {!isAttachmentModalInput && !canSendPlainText
-                && <Icon name="lock-badge" className="placeholder-icon" />}
+              {!isAttachmentModalInput && !canSendPlainText && (
+                <Icon name="lock-badge" className="placeholder-icon" />
+              )}
               {shouldDisplayTimer ? (
-                <TextTimer langKey={timedPlaceholderLangKey!} endsAt={timedPlaceholderDate!} onEnd={handleTimerEnd} />
-              ) : placeholder}
+                <TextTimer
+                  langKey={timedPlaceholderLangKey!}
+                  endsAt={timedPlaceholderDate!}
+                  onEnd={handleTimerEnd}
+                />
+              ) : (
+                placeholder
+              )}
               {isStoryInput && isNeedPremium && (
-                <Button className="unlock-button" size="tiny" color="adaptive" onClick={handleOpenPremiumModal}>
-                  {lang('StoryRepliesLockedButton')}
+                <Button
+                  className="unlock-button"
+                  size="tiny"
+                  color="adaptive"
+                  onClick={handleOpenPremiumModal}
+                >
+                  {lang("StoryRepliesLockedButton")}
                 </Button>
               )}
             </span>
           )}
           <canvas ref={sharedCanvasRef} className="shared-canvas" />
           <canvas ref={sharedCanvasHqRef} className="shared-canvas" />
-          <div ref={absoluteContainerRef} className="absolute-video-container" />
+          <div
+            ref={absoluteContainerRef}
+            className="absolute-video-container"
+          />
         </div>
       </div>
       <div
         ref={scrollerCloneRef}
-        className={buildClassName('custom-scroll',
+        className={buildClassName(
+          "custom-scroll",
           SCROLLER_CLASS,
-          'clone',
-          isNeedPremium && 'is-need-premium')}
+          "clone",
+          isNeedPremium && "is-need-premium"
+        )}
       >
         <div className={inputScrollerContentClass}>
-          <div ref={cloneRef} className={buildClassName(className, 'clone')} dir="auto" />
+          <div
+            ref={cloneRef}
+            className={buildClassName(className, "clone")}
+            dir="auto"
+          />
         </div>
       </div>
       {captionLimit !== undefined && (
@@ -637,20 +755,27 @@ const MessageInput: FC<OwnProps & StateProps> = ({
         setSelectedRange={setSelectedRange}
         onClose={handleCloseTextFormatter}
       />
-      {forcedPlaceholder && <span className="forced-placeholder">{renderText(forcedPlaceholder!)}</span>}
+      {forcedPlaceholder && (
+        <span className="forced-placeholder">
+          {renderText(forcedPlaceholder!)}
+        </span>
+      )}
     </div>
   );
 };
 
-export default memo(withGlobal<OwnProps>(
-  (global, { chatId, threadId }: OwnProps): StateProps => {
+export default memo(
+  withGlobal<OwnProps>((global, { chatId, threadId }: OwnProps): StateProps => {
     const { messageSendKeyCombo } = global.settings.byKey;
 
     return {
       messageSendKeyCombo,
-      replyInfo: chatId && threadId ? selectDraft(global, chatId, threadId)?.replyInfo : undefined,
+      replyInfo:
+        chatId && threadId
+          ? selectDraft(global, chatId, threadId)?.replyInfo
+          : undefined,
       isSelectModeActive: selectIsInSelectMode(global),
       canPlayAnimatedEmojis: selectCanPlayAnimatedEmojis(global),
     };
-  },
-)(MessageInput));
+  })(MessageInput)
+);

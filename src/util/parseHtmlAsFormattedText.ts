@@ -1,263 +1,435 @@
-import type { ApiFormattedText, ApiMessageEntity } from '../api/types';
-import { ApiMessageEntityTypes } from '../api/types';
+import type { ApiFormattedText } from "../api/types";
+import { ApiMessageEntityTypes } from "../api/types";
 
-import { RE_LINK_TEMPLATE } from '../config';
-import { IS_EMOJI_SUPPORTED } from './windowEnvironment';
+export const ENTITY_CLASS_BY_NODE_NAME: Record<string, ApiMessageEntityTypes> =
+  {
+    B: ApiMessageEntityTypes.Bold,
+    STRONG: ApiMessageEntityTypes.Bold,
+    I: ApiMessageEntityTypes.Italic,
+    EM: ApiMessageEntityTypes.Italic,
+    INS: ApiMessageEntityTypes.Underline,
+    U: ApiMessageEntityTypes.Underline,
+    S: ApiMessageEntityTypes.Strike,
+    STRIKE: ApiMessageEntityTypes.Strike,
+    DEL: ApiMessageEntityTypes.Strike,
+    CODE: ApiMessageEntityTypes.Code,
+    PRE: ApiMessageEntityTypes.Pre,
+    BLOCKQUOTE: ApiMessageEntityTypes.Blockquote,
+    MARK: ApiMessageEntityTypes.Highlight,
+  };
 
-export const ENTITY_CLASS_BY_NODE_NAME: Record<string, ApiMessageEntityTypes> = {
-  B: ApiMessageEntityTypes.Bold,
-  STRONG: ApiMessageEntityTypes.Bold,
-  I: ApiMessageEntityTypes.Italic,
-  EM: ApiMessageEntityTypes.Italic,
-  INS: ApiMessageEntityTypes.Underline,
-  U: ApiMessageEntityTypes.Underline,
-  S: ApiMessageEntityTypes.Strike,
-  STRIKE: ApiMessageEntityTypes.Strike,
-  DEL: ApiMessageEntityTypes.Strike,
-  CODE: ApiMessageEntityTypes.Code,
-  PRE: ApiMessageEntityTypes.Pre,
-  BLOCKQUOTE: ApiMessageEntityTypes.Blockquote,
-};
+const EntitiesReg = [
+  // Headings (H1 - H6)
+  [/^(#{1,6}) (.+)/, "HEADING"],
+  [
+    /^<b(.*?)data-entity-type="MessageEntityHeading([1-6])"[^>]*>(.*?)<\/b>/,
+    "HEADING_HTML",
+  ],
 
-const MAX_TAG_DEEPNESS = 3;
+  // Bold (**) o (__)
+  [/^\*\*([^*]+)\*\*/, "BOLD"],
+  [/^<b[^>]*>(.*?)<\/b>/, "BOLD"],
+
+  // Underline (__)
+  [/^__([^_]+)__/, "UNDERLINE"],
+  [/^<u[^>]*>(.*?)<\/u>/, "UNDERLINE"],
+
+  // Italic (*) o (_)
+  [/^\*([^*]+)\*/, "ITALIC"],
+  [/^_([^_]+)_/, "ITALIC"],
+  [/^<i[^>]*>(.*?)<\/i>/, "ITALIC"],
+
+  // Strikethrough (~~)
+  [/^~~([^~]+)~~/, "STRIKETHROUGH"],
+  [/^<del[^>]*>(.*?)<\/del[^>]*>/, "STRIKETHROUGH"],
+
+  // Spoiler delimiter (||)
+  [/^\|\|([^|]+)\|\|/, "SPOILER"],
+  [
+    /^<span((.|\n)*?)data-entity-type="MessageEntitySpoiler"[^>]*>(.*?)<\/span>/,
+    "SPOILER",
+  ],
+
+  // Blockquote (>)
+  [/^(>|&gt;) (.+)/, "BLOCKQUOTE"],
+  [/^<blockquote[^>]*>(.*?)<\/blockquote[^>]*>/, "BLOCKQUOTE"],
+
+  // Unordered List (-, *, +)
+  // [/^[-*+] .+[\n\r]?/, "ULIST"],
+
+  // Ordered List (1., 2., ...)
+  // [/^\d+\. .+[\n\r]?/, "OLIST"],
+
+  // Code Block (```)
+  [/^```([^\n\r]+[\n\r])?([\s\S]+?)```/, "CODE_BLOCK"],
+
+  // Inline Code (`inline code`)
+  [/^`([^`]+)`/, "INLINE_CODE"],
+  [/^<code[^>]*>(.*?)<\/code[^>]*>/, "INLINE_CODE"],
+
+  // URL (protocol? + domain | IP)
+  [
+    new RegExp(
+      "^((https?:\\/\\/)?" +
+        "((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|" +
+        "((\\d{1,3}\\.){3}\\d{1,3}))" +
+        "(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*" +
+        "(\\?[;&a-z\\d%_.~+=-]*)?" +
+        "(\\#[-a-z\\d_]*)?)",
+      "i"
+    ),
+    "URL",
+  ],
+
+  // Mention (@username)
+  [/^@[a-zA-Z][a-zA-Z0-9_]{3,}/, "MENTION"],
+
+  // Hashtag (#sports)
+  [/^#[a-zA-Z][a-zA-Z0-9_]*/, "HASHTAG"],
+
+  // Cashtag ($USD)
+  [/^(\$[A-Z]{1,8}(?:@[a-zA-Z0-9_]{3,})?)(?![a-zA-Z0-9$])/, "CASHTAG"],
+
+  // BankCard (####-####-####-####)
+  [
+    /^(?:\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}|\d{4}[- ]?\d{6}[- ]?\d{5}|\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{1,3})/,
+    "BANKCARD",
+  ],
+
+  // Email (name@domain.com)
+  [/^([\w-\.]+@([\w-]+\.)+[\w-]{2,4})/, "EMAIL"],
+
+  // CommandBot (/start)
+  [/^(\/[a-zA-Z0-9_]{1,32})/, "BOTCOMMAND"],
+
+  // HTML Links <a href="url">Text</a>
+  [/^<a((.|\n)*?)href="([^"]*)"[^>]*>(.*?)<\/a[^>]*>/, "HTML_LINK"],
+
+  // MD Links [text](url)
+  [/^\[([^\]]+)\]\(([^)]+)\)/, "LINK"],
+
+  // CustomEmoji (<img src="" alt="$1">)
+  [/^<img[^>]+alt="([^"]+)"(.|\n)*data-document-id="([^"]+)"[^>]*>/, "CUSTOM_EMOJI"],
+
+  // Emoji (<img src="" alt="$1">)
+  [/^<img[^>]+alt="([^"]+)"[^>]*>/, "EMOJI"],
+
+  // Images ![alt](url)
+  // [/^!\[([^\]]*)\]\(([^)]+)\)/, "IMAGE"],
+
+  // Tables (| Col1 | Col2 |)
+  // [/^\|.+\|[\n\r]?/, "TABLE"],
+
+  // Highlight (==highlight==)
+  [/^==([^=]+)==/, "HIGHLIGHT"],
+  [/^<mark[^>]*>(.*?)<\/mark>/, "HIGHLIGHT"],
+
+  // Subscript (~sub~)
+  [/^~([^~]+)~/, "SUBSCRIPT"],
+  [/^<sub[^>]*>(.*?)<\/sub>/, "SUBSCRIPT"],
+
+  // Superscript (^sup^)
+  [/^\^([^^]+)\^/, "SUPERSCRIPT"],
+  [/^<sup[^>]*>(.*?)<\/sup>/, "SUPERSCRIPT"],
+
+  // Plain text
+  [/^(.|[\n\r])/, "TEXT"],
+] as const;
+
+interface TToken {
+  type: (typeof EntitiesReg)[number][1];
+  value: any;
+  length: number;
+  order?: number;
+  entities?: ApiFormattedText["entities"];
+}
+
+const JOINABLE_TYPES: TToken["type"][] = [
+  "TEXT" /*, "TABLE", "OLIST", "ULIST"*/,
+];
+
+const ALLOW_NESTING: Map<TToken["type"], TToken["type"][]> = new Map([
+  ["ITALIC", ["TEXT", "UNDERLINE"]],
+  ["BOLD", ["TEXT", "ITALIC", "UNDERLINE"]],
+  ["UNDERLINE", ["TEXT", "ITALIC"]],
+  ["SPOILER", ["TEXT", "ITALIC", "BOLD", "UNDERLINE", "LINK"]],
+]);
+
+function trim(s: string, end = false): string {
+  return s.replace(end ? /^[\s\n]+|[\s\n]+$/g : /^[\s\n]+/g, "");
+}
 
 export default function parseHtmlAsFormattedText(
-  html: string, withMarkdownLinks = false, skipMarkdown = false,
+  html: string,
+  allowedTypes: TToken["type"][] | null = null,
+  depth = 0
 ): ApiFormattedText {
-  const fragment = document.createElement('div');
-  fragment.innerHTML = skipMarkdown ? html
-    : withMarkdownLinks ? parseMarkdown(parseMarkdownLinks(html)) : parseMarkdown(html);
-  fixImageContent(fragment);
-  const text = fragment.innerText.trim().replace(/\u200b+/g, '');
-  const trimShift = fragment.innerText.indexOf(text[0]);
-  let textIndex = -trimShift;
-  let recursionDeepness = 0;
-  const entities: ApiMessageEntity[] = [];
+  let input = html
+    .replace(/&nbsp;/g, " ")
+    .replace(/<br([^>]*)?>/g, "\n")
+    .replace(/<div><br([^>]*)?><\/div>/g, "\n")
+    .replace(/<\/div>(\s*)<div>/g, "\n")
+    .replace(/<div>/g, "\n")
+    .replace(/<\/div>/g, "");
 
-  function addEntity(node: ChildNode) {
-    if (node.nodeType === Node.COMMENT_NODE) return;
-    const { index, entity } = getEntityDataFromNode(node, text, textIndex);
+  let tokens: TToken[] = [];
 
-    if (entity) {
-      textIndex = index;
-      entities.push(entity);
-    } else if (node.textContent) {
-      // Skip newlines on the beginning
-      if (index === 0 && node.textContent.trim() === '') {
-        return;
+  while (input.length > 0) {
+    let matched = false;
+
+    for (let [regex, type] of EntitiesReg) {
+      if (Array.isArray(allowedTypes) && !allowedTypes.includes(type)) {
+        continue;
       }
-      textIndex += node.textContent.length;
+
+      const match = input.match(regex);
+
+      if (match) {
+        matched = true;
+
+        let token: TToken = {
+          type,
+          value: match[0],
+          length: match[0].length,
+        };
+
+        input = input.slice(match[0].length);
+
+        if (type === "CODE_BLOCK") {
+          token.value = {
+            lang: trim(match[1] || "", true),
+            code: trim(match[2], true),
+          };
+        } else if (type === "LINK") {
+          token.value = { text: match[1], url: match[2] };
+        } else if (type === "HTML_LINK") {
+          token.type = "LINK";
+          token.value = { text: match[4], url: match[3] };
+        } else if (type === "HEADING") {
+          token.value = match[2];
+          token.order = match[1].length - 1;
+          token.length = token.value.length;
+        } else if (type === "HEADING_HTML") {
+          token.type = "HEADING";
+          token.value = match[3];
+          token.order = +match[2] - 1;
+          token.length = token.value.length;
+        } else if (type === "SPOILER") {
+          token.value = (match.length > 2 ? match[3] : match[1]) || "";
+          token.length = token.value.length;
+        } else if (type === "BLOCKQUOTE") {
+          token.value = (match.length < 2 ? match[1] : match[2]) || "";
+          token.length = token.value.length;
+        } else if (type === "CUSTOM_EMOJI") {
+          token.value = {
+            alt: match[1],
+            documentId: match[3],
+          };
+          token.length = match[1].length;
+        } else if (
+          JOINABLE_TYPES.includes(type) &&
+          tokens.length &&
+          tokens[tokens.length - 1].type === type
+        ) {
+          token = tokens[tokens.length - 1];
+          token.value.push(match[0]);
+          token.length += match[0].length;
+          break;
+        } else {
+          let v = match.length > 1 ? match[1] : match[0];
+          token.value = JOINABLE_TYPES.includes(type) ? [v] : v;
+        }
+
+        if (ALLOW_NESTING.has(type)) {
+          let types = ALLOW_NESTING.get(type)!;
+          let res = parseHtmlAsFormattedText(token.value, types, depth + 1);
+          token.value = res.text;
+          token.entities = res.entities;
+        }
+
+        tokens.push(token);
+        break;
+      }
     }
 
-    if (node.hasChildNodes() && recursionDeepness <= MAX_TAG_DEEPNESS) {
-      recursionDeepness += 1;
-      Array.from(node.childNodes).forEach(addEntity);
-    }
+    if (!matched) break;
   }
 
-  Array.from(fragment.childNodes).forEach((node) => {
-    recursionDeepness = 1;
-    addEntity(node);
-  });
+  let textParts: string[] = [];
+  let entities: ApiFormattedText["entities"] = [];
+  let offset = 0;
+  let offsets = [];
+
+  const typeMap = {
+    URL: ApiMessageEntityTypes.Url,
+    MENTION: ApiMessageEntityTypes.Mention,
+    HASHTAG: ApiMessageEntityTypes.Hashtag,
+    CASHTAG: ApiMessageEntityTypes.Cashtag,
+    BANKCARD: ApiMessageEntityTypes.BankCard,
+    BOLD: ApiMessageEntityTypes.Bold,
+    ITALIC: ApiMessageEntityTypes.Italic,
+    UNDERLINE: ApiMessageEntityTypes.Underline,
+    STRIKETHROUGH: ApiMessageEntityTypes.Strike,
+    SPOILER: ApiMessageEntityTypes.Spoiler,
+    BLOCKQUOTE: ApiMessageEntityTypes.Blockquote,
+    INLINE_CODE: ApiMessageEntityTypes.Code,
+    EMAIL: ApiMessageEntityTypes.Email,
+    BOTCOMMAND: ApiMessageEntityTypes.BotCommand,
+    HIGHLIGHT: ApiMessageEntityTypes.Highlight,
+    SUBSCRIPT: ApiMessageEntityTypes.Subscript,
+    SUPERSCRIPT: ApiMessageEntityTypes.Superscript,
+  } as const;
+
+  for (let i = 0, maxi = tokens.length; i < maxi; i += 1) {
+    offsets.push(offset);
+
+    let token = tokens[i];
+    let length = token.value.length;
+
+    textParts.push(
+      JOINABLE_TYPES.includes(token.type) ? token.value.join("") : token.value
+    );
+
+    if (token.type in typeMap) {
+      // @ts-ignore
+      let type = typeMap[token.type];
+
+      entities.push({
+        type,
+        length,
+        offset,
+      });
+    } else {
+      switch (token.type) {
+        case "HEADING":
+          const headingType = [
+            ApiMessageEntityTypes.Heading1,
+            ApiMessageEntityTypes.Heading2,
+            ApiMessageEntityTypes.Heading3,
+            ApiMessageEntityTypes.Heading4,
+            ApiMessageEntityTypes.Heading5,
+            ApiMessageEntityTypes.Heading6,
+          ][token.order || 0];
+
+          // @ts-ignore
+          entities.push({
+            type: headingType,
+            length,
+            offset,
+          });
+          break;
+        case "CODE_BLOCK":
+          textParts.pop();
+
+          length = token.value.code.length;
+          textParts.push(token.value.code);
+
+          entities.push({
+            type: ApiMessageEntityTypes.Pre,
+            length,
+            offset,
+            language: token.value.lang,
+          });
+          break;
+        case "LINK": {
+          textParts.pop();
+          length = token.value.text.length;
+          textParts.push(token.value.text);
+
+          entities.push({
+            type: ApiMessageEntityTypes.TextUrl,
+            length,
+            offset,
+            url: token.value.url,
+          });
+          break;
+        }
+        case "CUSTOM_EMOJI": {
+          textParts.pop();
+
+          length = token.value.alt.length;
+          textParts.push(token.value.alt);
+
+          entities.push({
+            type: ApiMessageEntityTypes.CustomEmoji,
+            length,
+            offset,
+            documentId: token.value.documentId,
+          });
+          break;
+        }
+
+        // case "OLIST":
+        // case "ULIST":
+        //   entities.push({
+        //     type: ApiMessageEntityTypes.Code,
+        //     length,
+        //     offset,
+        //   });
+
+        //   // let elem = token.type === "ULIST" ? "ul" : "ol";
+        //   // `<${elem}>${
+        //   //   .map(
+        //   //     (e: string) =>
+        //   //       `<li>${e.match(/^([-*+]|\d+\.) (.+)/)![2].trim()}</li>`
+        //   //   )
+        //   //   .join("")}</${elem}>`;
+        //   break;
+        // case "TABLE":
+        //   let rows = token.value.split("\n").filter((e: string) => e.trim());
+        //   let headerSeparator = rows.filter((r: string) => /^\|(-+\|)*$/.test(r));
+        //   let sPos = -1;
+
+        //   if (headerSeparator.length) {
+        //     sPos = rows.indexOf(headerSeparator[0]);
+        //   }
+
+        //   `<table>${rows
+        //     .map((r: string, p: number) =>
+        //       p === sPos - 1
+        //         ? `<thead><tr>${r
+        //             .split("|")
+        //             .map((e) => `<th>${e.trim()}</th>`)
+        //             .join("")}</tr></thead>`
+        //         : p > sPos
+        //         ? `${p === sPos + 1 ? "<tbody>" : ""}<tr>${r
+        //             .split("|")
+        //             .map((e) => `<td>${e.trim()}</td>`)
+        //             .join("")}</tr>${p === sPos + 1 ? "<tbody>" : ""}`
+        //         : ""
+        //     )
+        //     .join("")}</table>`;
+        //   break;
+        default:
+          break;
+      }
+    }
+
+    if (token.entities) {
+      token.entities.forEach((e) => {
+        let ne = { ...e };
+        ne.offset += offset;
+        entities.push(ne);
+      });
+    }
+
+    offset += length;
+  }
 
   return {
-    text,
-    entities: entities.length ? entities : undefined,
+    text: textParts.join(""),
+    entities,
   };
 }
 
 export function fixImageContent(fragment: HTMLDivElement) {
-  fragment.querySelectorAll('img').forEach((node) => {
-    if (node.dataset.documentId) { // Custom Emoji
-      node.textContent = (node as HTMLImageElement).alt || '';
-    } else { // Regular emoji with image fallback
-      node.replaceWith(node.alt || '');
+  fragment.querySelectorAll("img").forEach((node) => {
+    if (node.dataset.documentId) {
+      // Custom Emoji
+      node.textContent = (node as HTMLImageElement).alt || "";
+    } else {
+      // Regular emoji with image fallback
+      node.replaceWith(node.alt || "");
     }
   });
-}
-
-function parseMarkdown(html: string) {
-  let parsedHtml = html.slice(0);
-
-  // Strip redundant nbsp's
-  parsedHtml = parsedHtml.replace(/&nbsp;/g, ' ');
-
-  // Replace <div><br></div> with newline (new line in Safari)
-  parsedHtml = parsedHtml.replace(/<div><br([^>]*)?><\/div>/g, '\n');
-  // Replace <br> with newline
-  parsedHtml = parsedHtml.replace(/<br([^>]*)?>/g, '\n');
-
-  // Strip redundant <div> tags
-  parsedHtml = parsedHtml.replace(/<\/div>(\s*)<div>/g, '\n');
-  parsedHtml = parsedHtml.replace(/<div>/g, '\n');
-  parsedHtml = parsedHtml.replace(/<\/div>/g, '');
-
-  // Pre
-  parsedHtml = parsedHtml.replace(/^`{3}(.*?)[\n\r](.*?[\n\r]?)`{3}/gms, '<pre data-language="$1">$2</pre>');
-  parsedHtml = parsedHtml.replace(/^`{3}[\n\r]?(.*?)[\n\r]?`{3}/gms, '<pre>$1</pre>');
-  parsedHtml = parsedHtml.replace(/[`]{3}([^`]+)[`]{3}/g, '<pre>$1</pre>');
-
-  // Code
-  parsedHtml = parsedHtml.replace(
-    /(?!<(code|pre)[^<]*|<\/)[`]{1}([^`\n]+)[`]{1}(?![^<]*<\/(code|pre)>)/g,
-    '<code>$2</code>',
-  );
-
-  // Custom Emoji markdown tag
-  if (!IS_EMOJI_SUPPORTED) {
-    // Prepare alt text for custom emoji
-    parsedHtml = parsedHtml.replace(/\[<img[^>]+alt="([^"]+)"[^>]*>]/gm, '[$1]');
-  }
-  parsedHtml = parsedHtml.replace(
-    /(?!<(?:code|pre)[^<]*|<\/)\[([^\]\n]+)\]\(customEmoji:(\d+)\)(?![^<]*<\/(?:code|pre)>)/g,
-    '<img alt="$1" data-document-id="$2">',
-  );
-
-  // Other simple markdown
-  parsedHtml = parsedHtml.replace(
-    /(?!<(code|pre)[^<]*|<\/)[*]{2}([^*\n]+)[*]{2}(?![^<]*<\/(code|pre)>)/g,
-    '<b>$2</b>',
-  );
-  parsedHtml = parsedHtml.replace(
-    /(?!<(code|pre)[^<]*|<\/)[_]{2}([^_\n]+)[_]{2}(?![^<]*<\/(code|pre)>)/g,
-    '<i>$2</i>',
-  );
-  parsedHtml = parsedHtml.replace(
-    /(?!<(code|pre)[^<]*|<\/)[~]{2}([^~\n]+)[~]{2}(?![^<]*<\/(code|pre)>)/g,
-    '<s>$2</s>',
-  );
-  parsedHtml = parsedHtml.replace(
-    /(?!<(code|pre)[^<]*|<\/)[|]{2}([^|\n]+)[|]{2}(?![^<]*<\/(code|pre)>)/g,
-    `<span data-entity-type="${ApiMessageEntityTypes.Spoiler}">$2</span>`,
-  );
-
-  return parsedHtml;
-}
-
-function parseMarkdownLinks(html: string) {
-  return html.replace(new RegExp(`\\[([^\\]]+?)]\\((${RE_LINK_TEMPLATE}+?)\\)`, 'g'), (_, text, link) => {
-    const url = link.includes('://') ? link : link.includes('@') ? `mailto:${link}` : `https://${link}`;
-    return `<a href="${url}">${text}</a>`;
-  });
-}
-
-function getEntityDataFromNode(
-  node: ChildNode,
-  rawText: string,
-  textIndex: number,
-): { index: number; entity?: ApiMessageEntity } {
-  const type = getEntityTypeFromNode(node);
-
-  if (!type || !node.textContent) {
-    return {
-      index: textIndex,
-      entity: undefined,
-    };
-  }
-
-  const rawIndex = rawText.indexOf(node.textContent, textIndex);
-  // In some cases, last text entity ends with a newline (which gets trimmed from `rawText`).
-  // In this case, `rawIndex` would return `-1`, so we use `textIndex` instead.
-  const index = rawIndex >= 0 ? rawIndex : textIndex;
-  const offset = rawText.substring(0, index).length;
-  const { length } = rawText.substring(index, index + node.textContent.length);
-
-  if (type === ApiMessageEntityTypes.TextUrl) {
-    return {
-      index,
-      entity: {
-        type,
-        offset,
-        length,
-        url: (node as HTMLAnchorElement).href,
-      },
-    };
-  }
-  if (type === ApiMessageEntityTypes.MentionName) {
-    return {
-      index,
-      entity: {
-        type,
-        offset,
-        length,
-        userId: (node as HTMLAnchorElement).dataset.userId!,
-      },
-    };
-  }
-
-  if (type === ApiMessageEntityTypes.Pre) {
-    return {
-      index,
-      entity: {
-        type,
-        offset,
-        length,
-        language: (node as HTMLPreElement).dataset.language,
-      },
-    };
-  }
-
-  if (type === ApiMessageEntityTypes.CustomEmoji) {
-    return {
-      index,
-      entity: {
-        type,
-        offset,
-        length,
-        documentId: (node as HTMLImageElement).dataset.documentId!,
-      },
-    };
-  }
-
-  return {
-    index,
-    entity: {
-      type,
-      offset,
-      length,
-    },
-  };
-}
-
-function getEntityTypeFromNode(node: ChildNode): ApiMessageEntityTypes | undefined {
-  if (node instanceof HTMLElement && node.dataset.entityType) {
-    return node.dataset.entityType as ApiMessageEntityTypes;
-  }
-
-  if (ENTITY_CLASS_BY_NODE_NAME[node.nodeName]) {
-    return ENTITY_CLASS_BY_NODE_NAME[node.nodeName];
-  }
-
-  if (node.nodeName === 'A') {
-    const anchor = node as HTMLAnchorElement;
-    if (anchor.dataset.entityType === ApiMessageEntityTypes.MentionName) {
-      return ApiMessageEntityTypes.MentionName;
-    }
-    if (anchor.dataset.entityType === ApiMessageEntityTypes.Url) {
-      return ApiMessageEntityTypes.Url;
-    }
-    if (anchor.href.startsWith('mailto:')) {
-      return ApiMessageEntityTypes.Email;
-    }
-    if (anchor.href.startsWith('tel:')) {
-      return ApiMessageEntityTypes.Phone;
-    }
-    if (anchor.href !== anchor.textContent) {
-      return ApiMessageEntityTypes.TextUrl;
-    }
-
-    return ApiMessageEntityTypes.Url;
-  }
-
-  if (node.nodeName === 'SPAN') {
-    return (node as HTMLElement).dataset.entityType as any;
-  }
-
-  if (node.nodeName === 'IMG') {
-    if ((node as HTMLImageElement).dataset.documentId) {
-      return ApiMessageEntityTypes.CustomEmoji;
-    }
-  }
-
-  return undefined;
 }
