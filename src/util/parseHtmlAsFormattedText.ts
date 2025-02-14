@@ -22,37 +22,37 @@ const EntitiesReg = [
   // Headings (H1 - H6)
   [/^(#{1,6}) (.+)/, "HEADING"],
   [
-    /^<b(.*?)data-entity-type="MessageEntityHeading([1-6])"[^>]*>(.*?)<\/b>/,
+    /^<b([\s\S]*?)data-entity-type="MessageEntityHeading([1-6])"[^>]*>([\s\S]*?)<\/b>/,
     "HEADING_HTML",
   ],
 
   // Bold (**) o (__)
-  [/^\*\*([^*]+)\*\*/, "BOLD"],
-  [/^<b[^>]*>(.*?)<\/b>/, "BOLD"],
+  [/^\*\*([^*]+?)\*\*/, "BOLD"],
+  [/^<b[^>]*>([\s\S]*?)<\/b>/, "BOLD"],
 
   // Underline (__)
   [/^__([^_]+)__/, "UNDERLINE"],
-  [/^<u[^>]*>(.*?)<\/u>/, "UNDERLINE"],
+  [/^<u[^>]*>([\s\S]*?)<\/u>/, "UNDERLINE"],
 
   // Italic (*) o (_)
   [/^\*([^*]+)\*/, "ITALIC"],
   [/^_([^_]+)_/, "ITALIC"],
-  [/^<i[^>]*>(.*?)<\/i>/, "ITALIC"],
+  [/^<i[^>]*>([\s\S]*?)<\/i>/, "ITALIC"],
 
   // Strikethrough (~~)
   [/^~~([^~]+)~~/, "STRIKETHROUGH"],
-  [/^<del[^>]*>(.*?)<\/del[^>]*>/, "STRIKETHROUGH"],
+  [/^<del[^>]*>([\s\S]*?)<\/del[^>]*>/, "STRIKETHROUGH"],
 
   // Spoiler delimiter (||)
   [/^\|\|([^|]+)\|\|/, "SPOILER"],
   [
-    /^<span((.|\n)*?)data-entity-type="MessageEntitySpoiler"[^>]*>(.*?)<\/span>/,
+    /^<span([\s\S]*?)data-entity-type="MessageEntitySpoiler"[^>]*>([\s\S]*?)<\/span>/,
     "SPOILER",
   ],
 
   // Blockquote (>)
   [/^(>|&gt;) (.+)/, "BLOCKQUOTE"],
-  [/^<blockquote[^>]*>(.*?)<\/blockquote[^>]*>/, "BLOCKQUOTE"],
+  [/^<blockquote[^>]*>([\s\S]*?)<\/blockquote[^>]*>/, "BLOCKQUOTE"],
 
   // Unordered List (-, *, +)
   // [/^[-*+] .+[\n\r]?/, "ULIST"],
@@ -65,7 +65,7 @@ const EntitiesReg = [
 
   // Inline Code (`inline code`)
   [/^`([^`]+)`/, "INLINE_CODE"],
-  [/^<code[^>]*>(.*?)<\/code[^>]*>/, "INLINE_CODE"],
+  [/^<code[^>]*>([\s\S]*?)<\/code[^>]*>/, "INLINE_CODE"],
 
   // URL (protocol? + domain | IP)
   [
@@ -103,13 +103,16 @@ const EntitiesReg = [
   [/^(\/[a-zA-Z0-9_]{1,32})/, "BOTCOMMAND"],
 
   // HTML Links <a href="url">Text</a>
-  [/^<a((.|\n)*?)href="([^"]*)"[^>]*>(.*?)<\/a[^>]*>/, "HTML_LINK"],
+  [/^<a([\s\S]*?)href="([^"]*)"[^>]*>([\s\S]*?)<\/a[^>]*>/, "HTML_LINK"],
 
   // MD Links [text](url)
   [/^\[([^\]]+)\]\(([^)]+)\)/, "LINK"],
 
   // CustomEmoji (<img src="" alt="$1">)
-  [/^<img[^>]+alt="([^"]+)"(.|\n)*data-document-id="([^"]+)"[^>]*>/, "CUSTOM_EMOJI"],
+  [
+    /^<img[\s\S]+?alt="([^"]+)"[\s\S]*?data-document-id="([^"]+)"[^>]*>/,
+    "CUSTOM_EMOJI",
+  ],
 
   // Emoji (<img src="" alt="$1">)
   [/^<img[^>]+alt="([^"]+)"[^>]*>/, "EMOJI"],
@@ -122,15 +125,15 @@ const EntitiesReg = [
 
   // Highlight (==highlight==)
   [/^==([^=]+)==/, "HIGHLIGHT"],
-  [/^<mark[^>]*>(.*?)<\/mark>/, "HIGHLIGHT"],
+  [/^<mark[^>]*>([\s\S]*?)<\/mark>/, "HIGHLIGHT"],
 
   // Subscript (~sub~)
   [/^~([^~]+)~/, "SUBSCRIPT"],
-  [/^<sub[^>]*>(.*?)<\/sub>/, "SUBSCRIPT"],
+  [/^<sub[^>]*>([\s\S]*?)<\/sub>/, "SUBSCRIPT"],
 
   // Superscript (^sup^)
   [/^\^([^^]+)\^/, "SUPERSCRIPT"],
-  [/^<sup[^>]*>(.*?)<\/sup>/, "SUPERSCRIPT"],
+  [/^<sup[^>]*>([\s\S]*?)<\/sup>/, "SUPERSCRIPT"],
 
   // Plain text
   [/^(.|[\n\r])/, "TEXT"],
@@ -156,7 +159,7 @@ const ALLOW_NESTING: Map<TToken["type"], TToken["type"][]> = new Map([
 ]);
 
 function trim(s: string, end = false): string {
-  return s.replace(end ? /^[\s\n]+|[\s\n]+$/g : /^[\s\n]+/g, "");
+  return s.replace(end ? /^[\s\n\r]+|[\s\n\r]+$/g : /^[\s\n\r]+/g, "");
 }
 
 export default function parseHtmlAsFormattedText(
@@ -204,7 +207,7 @@ export default function parseHtmlAsFormattedText(
           token.value = { text: match[1], url: match[2] };
         } else if (type === "HTML_LINK") {
           token.type = "LINK";
-          token.value = { text: match[4], url: match[3] };
+          token.value = { text: match[3], url: match[2] };
         } else if (type === "HEADING") {
           token.value = match[2];
           token.order = match[1].length - 1;
@@ -218,12 +221,12 @@ export default function parseHtmlAsFormattedText(
           token.value = (match.length > 2 ? match[3] : match[1]) || "";
           token.length = token.value.length;
         } else if (type === "BLOCKQUOTE") {
-          token.value = (match.length < 2 ? match[1] : match[2]) || "";
+          token.value = (match[1] === ">" ? match[2] : match[1]) || "";
           token.length = token.value.length;
         } else if (type === "CUSTOM_EMOJI") {
           token.value = {
             alt: match[1],
-            documentId: match[3],
+            documentId: match[2],
           };
           token.length = match[1].length;
         } else if (

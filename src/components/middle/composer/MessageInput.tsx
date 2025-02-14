@@ -463,17 +463,18 @@ const MessageInput: FC<OwnProps & StateProps> = ({
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+    if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "y")) {
       e.preventDefault();
-      updateFromHistory(Math.max(0, currentStep - 1));
-      setCurrentStep((prev) => Math.max(0, prev - 1));
-      return;
-    }
-
-    if ((e.metaKey || e.ctrlKey) && e.key === "y") {
-      e.preventDefault();
-      updateFromHistory(Math.min(history.length - 1, currentStep + 1));
-      setCurrentStep((prev) => Math.min(history.length - 1, prev + 1));
+      updateFromHistory(
+        e.key === "z"
+          ? Math.max(0, currentStep - 1)
+          : Math.min(history.length - 1, currentStep + 1)
+      );
+      setCurrentStep((prev) =>
+        e.key === "z"
+          ? Math.max(0, prev - 1)
+          : Math.min(history.length - 1, prev + 1)
+      );
       return;
     }
 
