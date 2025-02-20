@@ -1,0 +1,82 @@
+.ChatFolders {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  .ChatList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    padding-top: 0.5rem;
+
+    .ChatFolder {
+      height: 4.5rem;
+      padding: 0.25rem;
+
+      &.active button {
+        color: #5b99ee;
+      }
+
+      &.active .badge {
+        background-color: #5b99ee;
+      }
+      
+      &:not(.active) .badge {
+        background-color: var(--color-text-secondary);
+        transition: all 200ms;
+      }
+
+      button {
+        --icon-size: 2.5rem;
+        display: grid;
+        grid-template-rows: 1fr 1.1rem;
+        place-items: center;
+        height: 100%;
+        padding: 0;
+        padding-inline: 0.625rem;
+
+        .badge {
+          min-width: 1.5rem;
+          height: 1.5rem;
+          margin-inline-start: 0.5rem;
+          background: var(--color-gray);
+          border-radius: 0.75rem;
+          padding: 0 0.3125rem;
+          color: white;
+          font-size: 0.8rem;
+          line-height: 1.3125rem;
+          font-weight: var(--font-weight-medium);
+          text-align: center;
+          flex-shrink: 0;
+          position: absolute;
+          top: 0;
+          right: 0.4rem;
+          border: 0.15rem solid var(--color-background-column);
+
+
+          body.is-ios &,
+          body.is-macos & {
+            line-height: 1.25rem;
+          }
+        }
+
+        & > .FolderTitle {
+          font-size: 0.7rem;
+          text-transform: none;
+        }
+      }
+    }
+  }
+
+  .CustomEmoji-module__media {
+    width: 100% !important;
+    height: 100% !important;
+
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+      aspect-ratio: 1 / 1;
+    }
+  }
+}

@@ -99,6 +99,9 @@ const EntitiesReg = [
   // Email (name@domain.com)
   [/^([\w-\.]+@([\w-]+\.)+[\w-]{2,4})/, "EMAIL"],
 
+  // Phone (+1 (765) 1234 2213)
+  [/^(?=(?:[^\d\n]*\d){8,})[+]?\d+(\s*\(\d+\))?[\d -]+\d/, "PHONE"],
+
   // CommandBot (/start)
   [/^(\/[a-zA-Z0-9_]{1,32})/, "BOTCOMMAND"],
 
@@ -198,7 +201,10 @@ export default function parseHtmlAsFormattedText(
 
         input = input.slice(match[0].length);
 
-        if (type === "CODE_BLOCK") {
+        if (type === "PHONE") {
+          tokens.push(token);
+          break;
+        } else if (type === "CODE_BLOCK") {
           token.value = {
             lang: trim(match[1] || "", true),
             code: trim(match[2], true),
@@ -281,6 +287,7 @@ export default function parseHtmlAsFormattedText(
     HIGHLIGHT: ApiMessageEntityTypes.Highlight,
     SUBSCRIPT: ApiMessageEntityTypes.Subscript,
     SUPERSCRIPT: ApiMessageEntityTypes.Superscript,
+    PHONE: ApiMessageEntityTypes.Phone,
   } as const;
 
   for (let i = 0, maxi = tokens.length; i < maxi; i += 1) {

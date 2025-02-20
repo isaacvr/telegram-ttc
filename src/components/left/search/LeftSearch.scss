@@ -13,6 +13,7 @@
 
   .TabList {
     z-index: 1;
+    max-width: calc(var(--left-column-max-width) - 4rem);
   }
 
   &--content {

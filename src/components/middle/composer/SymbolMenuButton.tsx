@@ -1,26 +1,32 @@
-import type { FC } from '../../../lib/teact/teact';
-import React, { memo, useRef, useState } from '../../../lib/teact/teact';
-import { getActions } from '../../../global';
+import type { FC } from "../../../lib/teact/teact";
+import React, { memo, useRef, useState } from "../../../lib/teact/teact";
+import { getActions } from "../../../global";
 
-import type { ApiSticker, ApiVideo } from '../../../api/types';
-import type { IAnchorPosition, ThreadId } from '../../../types';
+import type { ApiSticker, ApiVideo } from "../../../api/types";
+import type { IAnchorPosition, ThreadId } from "../../../types";
 
-import { EDITABLE_INPUT_CSS_SELECTOR, EDITABLE_INPUT_MODAL_CSS_SELECTOR } from '../../../config';
-import buildClassName from '../../../util/buildClassName';
+import {
+  EDITABLE_INPUT_CSS_SELECTOR,
+  EDITABLE_INPUT_MODAL_CSS_SELECTOR,
+} from "../../../config";
+import buildClassName from "../../../util/buildClassName";
 
-import useFlag from '../../../hooks/useFlag';
-import useLastCallback from '../../../hooks/useLastCallback';
+import useFlag from "../../../hooks/useFlag";
+import useLastCallback from "../../../hooks/useLastCallback";
 
-import Icon from '../../common/icons/Icon';
-import Button from '../../ui/Button';
-import ResponsiveHoverButton from '../../ui/ResponsiveHoverButton';
-import Spinner from '../../ui/Spinner';
-import SymbolMenu from './SymbolMenu.async';
+import Icon from "../../common/icons/Icon";
+import Button from "../../ui/Button";
+import ResponsiveHoverButton from "../../ui/ResponsiveHoverButton";
+import Spinner from "../../ui/Spinner";
+import SymbolMenu from "./SymbolMenu.async";
+import { FoldersState } from "../../../hooks/reducers/useFoldersReducer";
+import FolderIcon from "../../left/folderIcon/FolderIcon";
 
 const MOBILE_KEYBOARD_HIDE_DELAY_MS = 100;
 
 type OwnProps = {
   chatId: string;
+  state?: FoldersState;
   threadId?: ThreadId;
   isMobile?: boolean;
   isReady?: boolean;
@@ -38,9 +44,13 @@ type OwnProps = {
     isSilent?: boolean,
     shouldSchedule?: boolean,
     shouldPreserveInput?: boolean,
-    canUpdateStickerSetsOrder?: boolean,
+    canUpdateStickerSetsOrder?: boolean
   ) => void;
-  onGifSelect?: (gif: ApiVideo, isSilent?: boolean, shouldSchedule?: boolean) => void;
+  onGifSelect?: (
+    gif: ApiVideo,
+    isSilent?: boolean,
+    shouldSchedule?: boolean
+  ) => void;
   onRemoveSymbol: VoidFunction;
   onEmojiSelect: (emoji: string) => void;
   closeBotCommandMenu?: VoidFunction;
@@ -54,6 +64,7 @@ type OwnProps = {
 
 const SymbolMenuButton: FC<OwnProps> = ({
   chatId,
+  state,
   threadId,
   isMobile,
   canSendGifs,
@@ -89,14 +100,16 @@ const SymbolMenuButton: FC<OwnProps> = ({
   const triggerRef = useRef<HTMLDivElement>(null);
 
   const [isSymbolMenuLoaded, onSymbolMenuLoadingComplete] = useFlag();
-  const [contextMenuAnchor, setContextMenuAnchor] = useState<IAnchorPosition | undefined>(undefined);
+  const [contextMenuAnchor, setContextMenuAnchor] = useState<
+    IAnchorPosition | undefined
+  >(undefined);
 
   const symbolMenuButtonClassName = buildClassName(
-    'mobile-symbol-menu-button',
-    !isReady && 'not-ready',
+    "mobile-symbol-menu-button",
+    !isReady && "not-ready",
     isSymbolMenuLoaded
-      ? (isSymbolMenuOpen && 'menu-opened')
-      : (isSymbolMenuOpen && 'is-loading'),
+      ? isSymbolMenuOpen && "menu-opened"
+      : isSymbolMenuOpen && "is-loading"
   );
 
   const handleActivateSymbolMenu = useLastCallback(() => {
@@ -105,23 +118,27 @@ const SymbolMenuButton: FC<OwnProps> = ({
     openSymbolMenu();
     const triggerEl = triggerRef.current;
     if (!triggerEl) return;
-    const { x, y } = triggerEl.getBoundingClientRect();
+    let { x, y } = triggerEl.getBoundingClientRect();
+    if (chatId.startsWith("--folder")) {
+      x += 250;
+      y -= 90;
+    }
     setContextMenuAnchor({ x, y });
   });
 
-  const handleSearchOpen = useLastCallback((type: 'stickers' | 'gifs') => {
-    if (type === 'stickers') {
-      setStickerSearchQuery({ query: '' });
+  const handleSearchOpen = useLastCallback((type: "stickers" | "gifs") => {
+    if (type === "stickers") {
+      setStickerSearchQuery({ query: "" });
       setGifSearchQuery({ query: undefined });
     } else {
-      setGifSearchQuery({ query: '' });
+      setGifSearchQuery({ query: "" });
       setStickerSearchQuery({ query: undefined });
     }
   });
 
   const handleSymbolMenuOpen = useLastCallback(() => {
     const messageInput = document.querySelector<HTMLDivElement>(
-      isAttachmentModal ? EDITABLE_INPUT_MODAL_CSS_SELECTOR : inputCssSelector,
+      isAttachmentModal ? EDITABLE_INPUT_MODAL_CSS_SELECTOR : inputCssSelector
     );
 
     if (!isMobile || messageInput !== document.activeElement) {
@@ -137,34 +154,61 @@ const SymbolMenuButton: FC<OwnProps> = ({
   });
 
   const getTriggerElement = useLastCallback(() => triggerRef.current);
-  const getRootElement = useLastCallback(() => triggerRef.current?.closest('.custom-scroll, .no-scrollbar'));
-  const getMenuElement = useLastCallback(() => document.querySelector('#portals .SymbolMenu .bubble'));
+  const getRootElement = useLastCallback(() =>
+    triggerRef.current?.closest(".custom-scroll, .no-scrollbar")
+  );
+  const getMenuElement = useLastCallback(() =>
+    document.querySelector("#portals .SymbolMenu .bubble")
+  );
   const getLayout = useLastCallback(() => ({ withPortal: true }));
 
   return (
     <>
       {isMobile ? (
         <Button
-          className={symbolMenuButtonClassName}
+          className={buildClassName(
+            symbolMenuButtonClassName,
+            chatId.startsWith("--folder") && "folder-icon"
+          )}
           round
           color="translucent"
           onClick={isSymbolMenuOpen ? closeSymbolMenu : handleSymbolMenuOpen}
           ariaLabel="Choose emoji, sticker or GIF"
         >
-          <Icon name="smile" />
-          <Icon name="keyboard" />
+          {chatId.startsWith("--folder") && state?.mode === "edit" ? (
+            <FolderIcon
+              name={state?.folder.emoticon || ""}
+              documentId={state.folder.title.text.split(":")[1]}
+            />
+          ) : (
+            <>
+              <Icon name="smile" />
+              <Icon name="keyboard" />
+            </>
+          )}
           {isSymbolMenuOpen && !isSymbolMenuLoaded && <Spinner color="gray" />}
         </Button>
       ) : (
         <ResponsiveHoverButton
-          className={buildClassName('symbol-menu-button', isSymbolMenuOpen && 'activated')}
+          className={buildClassName(
+            "symbol-menu-button",
+            isSymbolMenuOpen && "activated",
+            chatId.startsWith("--folder") && "folder-icon"
+          )}
           round
           color="translucent"
           onActivate={handleActivateSymbolMenu}
           ariaLabel="Choose emoji, sticker or GIF"
         >
           <div ref={triggerRef} className="symbol-menu-trigger" />
-          <Icon name="smile" />
+          {chatId.startsWith("--folder") && state?.mode === "edit" ? (
+            <FolderIcon
+              name={state?.folder.emoticon || ""}
+              documentId={state.folder.title.text.split(":")[1]}
+            />
+          ) : (
+            <Icon name="smile" />
+          )}
         </ResponsiveHoverButton>
       )}
 
@@ -188,7 +232,10 @@ const SymbolMenuButton: FC<OwnProps> = ({
         addRecentCustomEmoji={addRecentCustomEmoji}
         isAttachmentModal={isAttachmentModal}
         canSendPlainText={canSendPlainText}
-        className={buildClassName(className, forceDarkTheme && 'component-theme-dark')}
+        className={buildClassName(
+          className,
+          forceDarkTheme && "component-theme-dark"
+        )}
         anchor={isAttachmentModal ? contextMenuAnchor : undefined}
         getTriggerElement={isAttachmentModal ? getTriggerElement : undefined}
         getRootElement={isAttachmentModal ? getRootElement : undefined}

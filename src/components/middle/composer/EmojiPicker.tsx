@@ -13,7 +13,7 @@ import type {
   EmojiRawData,
 } from '../../../util/emoji/emoji';
 
-import { MENU_TRANSITION_DURATION, RECENT_SYMBOL_SET_ID } from '../../../config';
+import { FOLDER_SYMBOL_SET_ID, MENU_TRANSITION_DURATION, RECENT_SYMBOL_SET_ID } from '../../../config';
 import animateHorizontalScroll from '../../../util/animateHorizontalScroll';
 import animateScroll from '../../../util/animateScroll';
 import buildClassName from '../../../util/buildClassName';
@@ -40,6 +40,7 @@ import './EmojiPicker.scss';
 
 type OwnProps = {
   className?: string;
+  folderIcons?: string[];
   onEmojiSelect: (emoji: string, name: string) => void;
 };
 
@@ -74,6 +75,7 @@ let emojiData: EmojiData;
 const EmojiPicker: FC<OwnProps & StateProps> = ({
   className,
   recentEmojis,
+  folderIcons,
   onEmojiSelect,
 }) => {
   // eslint-disable-next-line no-null/no-null
@@ -143,7 +145,14 @@ const EmojiPicker: FC<OwnProps & StateProps> = ({
       return MEMO_EMPTY_ARRAY;
     }
     const themeCategories = [...categories];
-    if (recentEmojis?.length) {
+    
+    if (folderIcons?.length) {
+      themeCategories.unshift({
+        id: FOLDER_SYMBOL_SET_ID,
+        name: "",
+        emojis: folderIcons,
+      });
+    } else if (recentEmojis?.length) {
       themeCategories.unshift({
         id: RECENT_SYMBOL_SET_ID,
         name: lang('RecentStickers'),
@@ -152,7 +161,7 @@ const EmojiPicker: FC<OwnProps & StateProps> = ({
     }
 
     return themeCategories;
-  }, [categories, lang, recentEmojis]);
+  }, [categories, lang, recentEmojis, folderIcons]);
 
   // Initialize data on first render.
   useEffect(() => {

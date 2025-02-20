@@ -547,7 +547,7 @@ function processEntity({
     case ApiMessageEntityTypes.Phone:
       return (
         <a
-          href={`tel:${entityText}`}
+          href={`tel:${entityText.replace(/\s/g, "")}`}
           className="text-entity-link"
           dir="auto"
           data-entity-type={entity.type}

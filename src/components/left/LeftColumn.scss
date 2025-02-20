@@ -2,6 +2,115 @@
   height: 100%;
 }
 
+#LeftColumn {
+  --color-background-column: #212121;
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  grid-template-rows: var(--header-height) 1fr;
+  grid-template-areas:
+    "dropdown left"
+    "folders left";
+
+  .DropdownMenuFiller {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  & > .DropdownMenu {
+    display: grid;
+    place-items: center;
+    grid-area: dropdown;
+    background-color: var(--color-background-column);
+
+    & > .Menu {
+      position: absolute;
+    }
+  }
+
+  .DropdownMenu.rtl {
+    transition: var(--slide-transition) transform;
+    position: absolute;
+    z-index: 2;
+
+    &.right-aligned {
+      transform: translateX(
+        calc(
+          clamp(
+              var(--left-column-min-width),
+              var(--left-column-width),
+              var(--left-column-max-width)
+            ) - 4.375rem
+        )
+      );
+    }
+
+    &.disable-transition {
+      transition: none;
+    }
+  }
+
+  .animated-menu-icon {
+    position: absolute;
+
+    &,
+    &::before,
+    &::after {
+      width: 1.125rem;
+      height: 0.125rem;
+      border-radius: 0.125rem;
+      background-color: var(--color-text-secondary);
+      transition: transform 0.25s;
+      transform: rotate(0);
+    }
+
+    &::before,
+    &::after {
+      position: absolute;
+      left: 0;
+      content: "";
+    }
+
+    &::before {
+      top: -0.3125rem;
+    }
+
+    &::after {
+      top: 0.3125rem;
+    }
+
+    &.state-back {
+      transform: rotate(180deg);
+
+      &::before {
+        transform: rotate(45deg) scaleX(0.75) translate(0.375rem, -0.1875rem);
+      }
+
+      &::after {
+        transform: rotate(-45deg) scaleX(0.75) translate(0.375rem, 0.1875rem);
+      }
+    }
+
+    &.no-animation {
+      transition: none;
+
+      &::before,
+      &::after {
+        transition: none;
+      }
+    }
+  }
+
+  #FolderLeftColumn {
+    grid-area: folders;
+    background-color: var(--color-background-column);
+  }
+
+  #LeftColumnContent {
+    max-width: calc(var(--left-column-max-width) - 5rem);
+    grid-area: left;
+  }
+}
+
 .left-header {
   height: var(--header-height);
   padding: 0.375rem 0.8125rem 0.5rem 0.8125rem;
@@ -24,11 +133,6 @@
 
   .SearchInput {
     margin-left: 0.625rem;
-    max-width: calc(100% - 3.25rem);
-
-    @media (max-width: 600px) {
-      max-width: calc(100% - 3rem);
-    }
   }
 
   @media (max-width: 600px) {

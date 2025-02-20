@@ -22,7 +22,6 @@ const EmojiButton: FC<OwnProps> = ({
   const handleClick = useLastCallback((e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
     // Preventing safari from losing focus on Composer MessageInput
     e.preventDefault();
-
     onClick(emoji.native, emoji.id);
   });
 

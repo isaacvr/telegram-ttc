@@ -19,6 +19,7 @@ export type TabWithProperties = {
   id?: number;
   title: TeactNode;
   badgeCount?: number;
+  emoticon?: string;
   isBlocked?: boolean;
   isBadgeActive?: boolean;
   contextActions?: MenuItemContextAction[];

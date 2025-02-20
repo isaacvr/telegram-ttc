@@ -31,9 +31,9 @@
   --left-column-min-width: 16rem;
   --left-column-max-width: 26.5rem;
 
-  width: 33vw;
+  width: calc(33vw + 4.5rem);
   min-width: var(--left-column-min-width);
-  max-width: var(--left-column-max-width);
+  max-width: calc(var(--left-column-max-width) + 4.5rem);
   height: 100%;
   overflow: hidden;
   position: relative;
@@ -45,7 +45,7 @@
   }
 
   @media (min-width: 1276px) {
-    width: 25vw;
+    width: 30vw;
     --left-column-max-width: 33vw;
   }
 

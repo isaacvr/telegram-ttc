@@ -142,6 +142,7 @@ const PRIVACY_GROUP_CHATS_SCREENS = [
 
 export type OwnProps = {
   isActive: boolean;
+  isMobile?: boolean;
   currentScreen: SettingsScreens;
   foldersState: FoldersState;
   foldersDispatch: FolderEditDispatch;
@@ -152,6 +153,7 @@ export type OwnProps = {
 
 const Settings: FC<OwnProps> = ({
   isActive,
+  isMobile,
   currentScreen,
   foldersState,
   foldersDispatch,
@@ -413,6 +415,7 @@ const Settings: FC<OwnProps> = ({
       case SettingsScreens.FoldersShare:
         return (
           <SettingsFolders
+            isMobile={isMobile}
             currentScreen={currentScreen}
             shownScreen={activeScreen}
             state={foldersState}

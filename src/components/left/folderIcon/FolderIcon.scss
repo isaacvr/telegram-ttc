@@ -1,0 +1,23 @@
+.ChatFolder-icon {
+  font-size: var(--icon-size, 3rem);
+  width: var(--icon-size, 3rem);
+  height: var(--icon-size, 3rem);
+
+  & > svg,
+  & > img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  &:not(.default) > img {
+    padding: 0.35rem;
+  }
+}
+
+.FolderName-container .Button.folder-icon {
+  padding: 0.2rem;
+  aspect-ratio: 1;
+  height: 2.5rem;
+  width: 2.5rem !important;
+}

@@ -1,36 +1,55 @@
-import type { FC } from '../../../../lib/teact/teact';
+import type { FC } from "../../../../lib/teact/teact";
 import React, {
-  memo, useCallback, useEffect, useMemo, useState,
-} from '../../../../lib/teact/teact';
-import { getActions, getGlobal, withGlobal } from '../../../../global';
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "../../../../lib/teact/teact";
+import { getActions, getGlobal, withGlobal } from "../../../../global";
 
-import type { ApiChatlistExportedInvite } from '../../../../api/types';
+import {
+  ApiMessageEntityTypes,
+  type ApiChatlistExportedInvite,
+  type ApiSticker,
+} from "../../../../api/types";
 import type {
   FolderEditDispatch,
   FoldersState,
-} from '../../../../hooks/reducers/useFoldersReducer';
+} from "../../../../hooks/reducers/useFoldersReducer";
 
-import { STICKER_SIZE_FOLDER_SETTINGS } from '../../../../config';
-import { isUserId } from '../../../../global/helpers';
-import { selectCanShareFolder } from '../../../../global/selectors';
-import { selectCurrentLimit } from '../../../../global/selectors/limits';
-import { findIntersectionWithSet } from '../../../../util/iteratees';
-import { MEMO_EMPTY_ARRAY } from '../../../../util/memo';
-import { CUSTOM_PEER_EXCLUDED_CHAT_TYPES, CUSTOM_PEER_INCLUDED_CHAT_TYPES } from '../../../../util/objects/customPeer';
-import { LOCAL_TGS_URLS } from '../../../common/helpers/animatedAssets';
+import { STICKER_SIZE_FOLDER_SETTINGS } from "../../../../config";
+import { isUserId } from "../../../../global/helpers";
+import {
+  selectCanShareFolder,
+  selectIsCurrentUserPremium,
+} from "../../../../global/selectors";
+import { selectCurrentLimit } from "../../../../global/selectors/limits";
+import { findIntersectionWithSet } from "../../../../util/iteratees";
+import { MEMO_EMPTY_ARRAY } from "../../../../util/memo";
+import {
+  CUSTOM_PEER_EXCLUDED_CHAT_TYPES,
+  CUSTOM_PEER_INCLUDED_CHAT_TYPES,
+} from "../../../../util/objects/customPeer";
+import { LOCAL_TGS_URLS } from "../../../common/helpers/animatedAssets";
 
-import { selectChatFilters } from '../../../../hooks/reducers/useFoldersReducer';
-import useHistoryBack from '../../../../hooks/useHistoryBack';
-import useOldLang from '../../../../hooks/useOldLang';
+import { selectChatFilters } from "../../../../hooks/reducers/useFoldersReducer";
+import useHistoryBack from "../../../../hooks/useHistoryBack";
+import useOldLang from "../../../../hooks/useOldLang";
 
-import AnimatedIcon from '../../../common/AnimatedIcon';
-import GroupChatInfo from '../../../common/GroupChatInfo';
-import Icon from '../../../common/icons/Icon';
-import PrivateChatInfo from '../../../common/PrivateChatInfo';
-import FloatingActionButton from '../../../ui/FloatingActionButton';
-import InputText from '../../../ui/InputText';
-import ListItem from '../../../ui/ListItem';
-import Spinner from '../../../ui/Spinner';
+import AnimatedIcon from "../../../common/AnimatedIcon";
+import GroupChatInfo from "../../../common/GroupChatInfo";
+import Icon from "../../../common/icons/Icon";
+import PrivateChatInfo from "../../../common/PrivateChatInfo";
+import FloatingActionButton from "../../../ui/FloatingActionButton";
+import InputText from "../../../ui/InputText";
+import ListItem from "../../../ui/ListItem";
+import Spinner from "../../../ui/Spinner";
+import SymbolMenuButton from "../../../middle/composer/SymbolMenuButton";
+import useFlag from "../../../../hooks/useFlag";
+import useLastCallback from "../../../../hooks/useLastCallback";
+import renderText from "../../../common/helpers/renderText";
 
 type OwnProps = {
   state: FoldersState;
@@ -40,6 +59,7 @@ type OwnProps = {
   onShareFolder: VoidFunction;
   onOpenInvite: (url: string) => void;
   isActive?: boolean;
+  isMobile?: boolean;
   isOnlyInvites?: boolean;
   onReset: () => void;
   onBack: () => void;
@@ -54,14 +74,16 @@ type StateProps = {
   maxInviteLinks: number;
   maxChatLists: number;
   chatListCount: number;
+  isCurrentUserPremium?: boolean;
+  currentUserId?: string;
 };
 
 const SUBMIT_TIMEOUT = 500;
 
 const INITIAL_CHATS_LIMIT = 5;
 
-export const ERROR_NO_TITLE = 'Please provide a title for this folder.';
-export const ERROR_NO_CHATS = 'ChatList.Filter.Error.Empty';
+export const ERROR_NO_TITLE = "Please provide a title for this folder.";
+export const ERROR_NO_CHATS = "ChatList.Filter.Error.Empty";
 
 const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
   state,
@@ -71,11 +93,14 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
   onShareFolder,
   onOpenInvite,
   isActive,
+  isMobile,
   onReset,
   isRemoved,
   onBack,
   loadedActiveChatIds,
   isOnlyInvites,
+  isCurrentUserPremium,
+  currentUserId,
   loadedArchivedChatIds,
   invites,
   maxInviteLinks,
@@ -83,17 +108,87 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
   chatListCount,
   onSaveFolder,
 }) => {
-  const {
-    loadChatlistInvites,
-    openLimitReachedModal,
-    showNotification,
-  } = getActions();
+  const { loadChatlistInvites, openLimitReachedModal, showNotification } =
+    getActions();
 
-  const isCreating = state.mode === 'create';
+  const isCreating = state.mode === "create";
   const isEditingChatList = state.folder.isChatList;
 
-  const [isIncludedChatsListExpanded, setIsIncludedChatsListExpanded] = useState(false);
-  const [isExcludedChatsListExpanded, setIsExcludedChatsListExpanded] = useState(false);
+  const [isIncludedChatsListExpanded, setIsIncludedChatsListExpanded] =
+    useState(false);
+  const [isExcludedChatsListExpanded, setIsExcludedChatsListExpanded] =
+    useState(false);
+  const [isSymbolMenuOpen, openSymbolMenu, closeSymbolMenu] = useFlag();
+  const customEmojiNotificationNumber = useRef(0);
+
+  const showCustomEmojiPremiumNotification = useLastCallback(() => {
+    const notificationNumber = customEmojiNotificationNumber.current;
+    if (!notificationNumber) {
+      showNotification({
+        message: lang("UnlockPremiumEmojiHint"),
+        action: {
+          action: "openPremiumModal",
+          payload: { initialSection: "animated_emoji" },
+        },
+        actionText: lang("PremiumMore"),
+      });
+    } else {
+      showNotification({
+        message: lang("UnlockPremiumEmojiHint2"),
+        action: {
+          action: "openChat",
+          payload: { id: currentUserId, shouldReplaceHistory: true },
+        },
+        actionText: lang("Open"),
+      });
+    }
+    customEmojiNotificationNumber.current = Number(!notificationNumber);
+  });
+
+  const handleEmojiSelect = useLastCallback((text: string) => {
+    const newState = JSON.parse(JSON.stringify(state));
+    newState.folder.emoticon = text;
+
+    dispatch({
+      type: "editEmoji",
+      payload: {
+        folder: newState.folder,
+        folderId: state.folderId,
+        chatFilter: state.chatFilter,
+      },
+    });
+
+    closeSymbolMenu();
+  });
+
+  const handleCustomEmojiSelect = useLastCallback(
+    (emoji: ApiSticker, inInputId?: string) => {
+      const newState = JSON.parse(JSON.stringify(state));
+      newState.folder.emoticon = emoji.emoji;
+
+      if (!emoji.isFree && !isCurrentUserPremium) {
+        dispatch({
+          type: "editEmoji",
+          payload: {
+            folder: newState.folder,
+            folderId: state.folderId,
+            chatFilter: state.chatFilter,
+          },
+        });
+        return;
+      }
+
+      // Have another treatment
+      dispatch({
+        type: "editEmoji",
+        payload: {
+          folder: newState.folder,
+          folderId: state.folderId,
+          chatFilter: state.chatFilter,
+        },
+      });
+    }
+  );
 
   useEffect(() => {
     if (isRemoved) {
@@ -110,11 +205,11 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
   const {
     selectedChatIds: includedChatIds,
     selectedChatTypes: includedChatTypes,
-  } = useMemo(() => selectChatFilters(state, 'included'), [state]);
+  } = useMemo(() => selectChatFilters(state, "included"), [state]);
   const {
     selectedChatIds: excludedChatIds,
     selectedChatTypes: excludedChatTypes,
-  } = useMemo(() => selectChatFilters(state, 'excluded'), [state]);
+  } = useMemo(() => selectChatFilters(state, "excluded"), [state]);
 
   useEffect(() => {
     setIsIncludedChatsListExpanded(false);
@@ -127,21 +222,38 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
       ...(loadedArchivedChatIds || []),
     ]);
 
-    const loadedIncludedChatIds = findIntersectionWithSet(includedChatIds, allLoadedChatsSet);
-    const loadedExcludedChatIds = findIntersectionWithSet(excludedChatIds, allLoadedChatsSet);
+    const loadedIncludedChatIds = findIntersectionWithSet(
+      includedChatIds,
+      allLoadedChatsSet
+    );
+    const loadedExcludedChatIds = findIntersectionWithSet(
+      excludedChatIds,
+      allLoadedChatsSet
+    );
 
     return [
       isIncludedChatsListExpanded
         ? loadedIncludedChatIds
-        : loadedIncludedChatIds.slice(0, INITIAL_CHATS_LIMIT - includedChatTypes.length),
+        : loadedIncludedChatIds.slice(
+            0,
+            INITIAL_CHATS_LIMIT - includedChatTypes.length
+          ),
       isExcludedChatsListExpanded
         ? loadedExcludedChatIds
-        : loadedExcludedChatIds.slice(0, INITIAL_CHATS_LIMIT - excludedChatTypes.length),
+        : loadedExcludedChatIds.slice(
+            0,
+            INITIAL_CHATS_LIMIT - excludedChatTypes.length
+          ),
     ];
   }, [
-    excludedChatIds, includedChatIds, includedChatTypes, excludedChatTypes,
-    isExcludedChatsListExpanded, isIncludedChatsListExpanded,
-    loadedActiveChatIds, loadedArchivedChatIds,
+    excludedChatIds,
+    includedChatIds,
+    includedChatTypes,
+    excludedChatTypes,
+    isExcludedChatsListExpanded,
+    isIncludedChatsListExpanded,
+    loadedActiveChatIds,
+    loadedArchivedChatIds,
   ]);
 
   const lang = useOldLang();
@@ -151,13 +263,19 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
     onBack,
   });
 
-  const handleChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const { currentTarget } = event;
-    dispatch({ type: 'setTitle', payload: currentTarget.value.trim() });
-  }, [dispatch]);
+  const handleChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const { currentTarget } = event;
+      dispatch({
+        type: "setTitle",
+        payload: currentTarget.value.trim().slice(0, 12),
+      });
+    },
+    [dispatch]
+  );
 
   const handleSubmit = useCallback(() => {
-    dispatch({ type: 'setIsLoading', payload: true });
+    dispatch({ type: "setIsLoading", payload: true });
 
     onSaveFolder(() => {
       setTimeout(() => {
@@ -176,13 +294,15 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
 
     // Ignoring global updates is a known drawback here
     if (!selectCanShareFolder(getGlobal(), state.folderId!)) {
-      showNotification({ message: lang('ChatList.Filter.InviteLink.IncludeExcludeError') });
+      showNotification({
+        message: lang("ChatList.Filter.InviteLink.IncludeExcludeError"),
+      });
       return;
     }
 
     if (chatListCount >= maxChatLists && !state.folder.isChatList) {
       openLimitReachedModal({
-        limit: 'chatlistJoined',
+        limit: "chatlistJoined",
       });
       return;
     }
@@ -197,25 +317,42 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
     }
 
     openLimitReachedModal({
-      limit: 'chatlistInvites',
+      limit: "chatlistInvites",
     });
   }, [
-    invites, state.folderId, state.isTouched, chatListCount, maxInviteLinks, isCreating, onSaveFolder,
-    onShareFolder, lang, maxChatLists, state.folder.isChatList,
+    invites,
+    state.folderId,
+    state.isTouched,
+    chatListCount,
+    maxInviteLinks,
+    isCreating,
+    onSaveFolder,
+    onShareFolder,
+    lang,
+    maxChatLists,
+    state.folder.isChatList,
   ]);
 
-  const handleEditInviteClick = useCallback((e: React.MouseEvent<HTMLElement>, url: string) => {
-    if (state.isTouched) {
-      onSaveFolder(() => onOpenInvite(url));
-    } else {
-      onOpenInvite(url);
-    }
-  }, [onSaveFolder, onOpenInvite, state.isTouched]);
+  const handleEditInviteClick = useCallback(
+    (e: React.MouseEvent<HTMLElement>, url: string) => {
+      if (state.isTouched) {
+        onSaveFolder(() => onOpenInvite(url));
+      } else {
+        onOpenInvite(url);
+      }
+    },
+    [onSaveFolder, onOpenInvite, state.isTouched]
+  );
 
-  function renderChatType(key: string, mode: 'included' | 'excluded') {
-    const chatType = mode === 'included'
-      ? CUSTOM_PEER_INCLUDED_CHAT_TYPES.find(({ type: typeKey }) => typeKey === key)
-      : CUSTOM_PEER_EXCLUDED_CHAT_TYPES.find(({ type: typeKey }) => typeKey === key);
+  function renderChatType(key: string, mode: "included" | "excluded") {
+    const chatType =
+      mode === "included"
+        ? CUSTOM_PEER_INCLUDED_CHAT_TYPES.find(
+            ({ type: typeKey }) => typeKey === key
+          )
+        : CUSTOM_PEER_EXCLUDED_CHAT_TYPES.find(
+            ({ type: typeKey }) => typeKey === key
+          );
 
     if (!chatType) {
       return undefined;
@@ -228,34 +365,33 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
         narrow
         inactive
       >
-        <PrivateChatInfo
-          avatarSize="small"
-          customPeer={chatType}
-        />
+        <PrivateChatInfo avatarSize="small" customPeer={chatType} />
       </ListItem>
     );
   }
 
-  function renderChats(mode: 'included' | 'excluded') {
-    const selectedChatTypes = mode === 'included' ? includedChatTypes : excludedChatTypes;
-    const visibleChatIds = mode === 'included' ? visibleIncludedChatIds : visibleExcludedChatIds;
+  function renderChats(mode: "included" | "excluded") {
+    const selectedChatTypes =
+      mode === "included" ? includedChatTypes : excludedChatTypes;
+    const visibleChatIds =
+      mode === "included" ? visibleIncludedChatIds : visibleExcludedChatIds;
 
-    const isExpanded = mode === 'included' ? isIncludedChatsListExpanded : isExcludedChatsListExpanded;
-    const allChatIds = mode === 'included' ? includedChatIds : excludedChatIds;
+    const isExpanded =
+      mode === "included"
+        ? isIncludedChatsListExpanded
+        : isExcludedChatsListExpanded;
+    const allChatIds = mode === "included" ? includedChatIds : excludedChatIds;
     const leftChatsCount = allChatIds.length - visibleChatIds.length;
-    const clickHandler = mode === 'included'
-      ? () => setIsIncludedChatsListExpanded(true)
-      : () => setIsExcludedChatsListExpanded(true);
+    const clickHandler =
+      mode === "included"
+        ? () => setIsIncludedChatsListExpanded(true)
+        : () => setIsExcludedChatsListExpanded(true);
 
     return (
       <>
         {selectedChatTypes.map((key) => renderChatType(key, mode))}
         {visibleChatIds.map((id) => (
-          <ListItem
-            className="settings-folders-list-item mb-1"
-            narrow
-            inactive
-          >
+          <ListItem className="settings-folders-list-item mb-1" narrow inactive>
             {isUserId(id) ? (
               <PrivateChatInfo avatarSize="small" userId={id} />
             ) : (
@@ -263,7 +399,7 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
             )}
           </ListItem>
         ))}
-        {(!isExpanded && leftChatsCount > 0) && (
+        {!isExpanded && leftChatsCount > 0 && (
           <ListItem
             key="load-more"
             className="settings-folders-list-item"
@@ -272,7 +408,7 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
             onClick={clickHandler}
             icon="down"
           >
-            {lang('FilterShowMoreChats', leftChatsCount, 'i')}
+            {lang("FilterShowMoreChats", leftChatsCount, "i")}
           </ListItem>
         )}
       </>
@@ -291,29 +427,63 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
           />
 
           {isCreating && (
-            <p className="settings-item-description mb-3" dir={lang.isRtl ? 'rtl' : undefined}>
-              {lang('FilterIncludeInfo')}
+            <p
+              className="settings-item-description mb-3"
+              dir={lang.isRtl ? "rtl" : undefined}
+            >
+              {lang("FilterIncludeInfo")}
             </p>
           )}
 
-          <InputText
-            className="mb-0"
-            label={lang('FilterNameHint')}
-            value={state.folder.title.text}
-            onChange={handleChange}
-            error={state.error && state.error === ERROR_NO_TITLE ? ERROR_NO_TITLE : undefined}
-          />
+          <div className="FolderName-container">
+            <InputText
+              className="mb-0"
+              maxLength={12}
+              label={lang("FilterNameHint")}
+              value={state.folder.title.text}
+              onChange={handleChange}
+              error={
+                state.error && state.error === ERROR_NO_TITLE
+                  ? ERROR_NO_TITLE
+                  : undefined
+              }
+            />
+            <SymbolMenuButton
+              chatId={"--folder"}
+              state={state}
+              isReady={true}
+              isMobile={isMobile}
+              isSymbolMenuOpen={isSymbolMenuOpen}
+              openSymbolMenu={openSymbolMenu}
+              closeSymbolMenu={closeSymbolMenu}
+              isMessageComposer={false}
+              onCustomEmojiSelect={handleCustomEmojiSelect}
+              onRemoveSymbol={() => {}}
+              onEmojiSelect={handleEmojiSelect}
+              canSendPlainText={true}
+              idPrefix={"folder-icon"}
+              isAttachmentModal={true}
+            />
+          </div>
         </div>
 
         {!isOnlyInvites && (
           <div className="settings-item pt-3">
             {state.error && state.error === ERROR_NO_CHATS && (
-              <p className="settings-item-description color-danger mb-2" dir={lang.isRtl ? 'rtl' : undefined}>
+              <p
+                className="settings-item-description color-danger mb-2"
+                dir={lang.isRtl ? "rtl" : undefined}
+              >
                 {lang(state.error)}
               </p>
             )}
 
-            <h4 className="settings-item-header mb-3" dir={lang.isRtl ? 'rtl' : undefined}>{lang('FilterInclude')}</h4>
+            <h4
+              className="settings-item-header mb-3"
+              dir={lang.isRtl ? "rtl" : undefined}
+            >
+              {lang("FilterInclude")}
+            </h4>
 
             <ListItem
               className="settings-folders-list-item color-primary"
@@ -321,16 +491,21 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
               narrow
               onClick={onAddIncludedChats}
             >
-              {lang('FilterAddChats')}
+              {lang("FilterAddChats")}
             </ListItem>
 
-            {renderChats('included')}
+            {renderChats("included")}
           </div>
         )}
 
         {!isOnlyInvites && !isEditingChatList && (
           <div className="settings-item pt-3">
-            <h4 className="settings-item-header mb-3" dir={lang.isRtl ? 'rtl' : undefined}>{lang('FilterExclude')}</h4>
+            <h4
+              className="settings-item-header mb-3"
+              dir={lang.isRtl ? "rtl" : undefined}
+            >
+              {lang("FilterExclude")}
+            </h4>
 
             <ListItem
               className="settings-folders-list-item color-primary"
@@ -338,16 +513,19 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
               narrow
               onClick={onAddExcludedChats}
             >
-              {lang('FilterAddChats')}
+              {lang("FilterAddChats")}
             </ListItem>
 
-            {renderChats('excluded')}
+            {renderChats("excluded")}
           </div>
         )}
 
         <div className="settings-item pt-3">
-          <h4 className="settings-item-header mb-3" dir={lang.isRtl ? 'rtl' : undefined}>
-            {lang('FolderLinkScreen.Title')}
+          <h4
+            className="settings-item-header mb-3"
+            dir={lang.isRtl ? "rtl" : undefined}
+          >
+            {lang("FolderLinkScreen.Title")}
           </h4>
 
           <ListItem
@@ -356,7 +534,7 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
             narrow
             onClick={handleCreateInviteClick}
           >
-            {lang('ChatListFilter.CreateLinkNew')}
+            {lang("ChatListFilter.CreateLinkNew")}
           </ListItem>
 
           {invites?.map((invite) => (
@@ -368,13 +546,18 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
               onClick={handleEditInviteClick}
               clickArg={invite.url}
             >
-              <span className="title" dir="auto">{invite.title || invite.url}</span>
+              <span className="title" dir="auto">
+                {invite.title || invite.url}
+              </span>
               <span className="subtitle">
-                {lang('ChatListFilter.LinkLabelChatCount', invite.peerIds.length, 'i')}
+                {lang(
+                  "ChatListFilter.LinkLabelChatCount",
+                  invite.peerIds.length,
+                  "i"
+                )}
               </span>
             </ListItem>
           ))}
-
         </div>
       </div>
 
@@ -382,32 +565,37 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
         isShown={Boolean(state.isTouched)}
         disabled={state.isLoading}
         onClick={handleSubmit}
-        ariaLabel={state.mode === 'edit' ? 'Save changes' : 'Create folder'}
+        ariaLabel={state.mode === "edit" ? "Save changes" : "Create folder"}
       >
-        {state.isLoading ? (
-          <Spinner color="white" />
-        ) : (
-          <Icon name="check" />
-        )}
+        {state.isLoading ? <Spinner color="white" /> : <Icon name="check" />}
       </FloatingActionButton>
     </div>
   );
 };
 
-export default memo(withGlobal<OwnProps>(
-  (global, { state }): StateProps => {
+export default memo(
+  withGlobal<OwnProps>((global, { state }): StateProps => {
     const { listIds } = global.chats;
     const { byId, invites } = global.chatFolders;
-    const chatListCount = Object.values(byId).reduce((acc, el) => acc + (el.isChatList ? 1 : 0), 0);
+    const chatListCount = Object.values(byId).reduce(
+      (acc, el) => acc + (el.isChatList ? 1 : 0),
+      0
+    );
+    const isCurrentUserPremium = selectIsCurrentUserPremium(global);
+    const { currentUserId } = global;
 
     return {
+      isCurrentUserPremium,
+      currentUserId,
       loadedActiveChatIds: listIds.active,
       loadedArchivedChatIds: listIds.archived,
-      invites: state.folderId ? (invites[state.folderId] || MEMO_EMPTY_ARRAY) : undefined,
+      invites: state.folderId
+        ? invites[state.folderId] || MEMO_EMPTY_ARRAY
+        : undefined,
       isRemoved: state.folderId !== undefined && !byId[state.folderId],
-      maxInviteLinks: selectCurrentLimit(global, 'chatlistInvites'),
-      maxChatLists: selectCurrentLimit(global, 'chatlistJoined'),
+      maxInviteLinks: selectCurrentLimit(global, "chatlistInvites"),
+      maxChatLists: selectCurrentLimit(global, "chatlistJoined"),
       chatListCount,
     };
-  },
-)(SettingsFoldersEdit));
+  })(SettingsFoldersEdit)
+);

@@ -201,6 +201,20 @@ const SymbolMenu: FC<OwnProps & StateProps> = ({
           <EmojiPicker
             className="picker-tab"
             onEmojiSelect={handleEmojiSelect}
+            folderIcons={
+              chatId.startsWith("--folder")
+                ? [
+                    "speech_balloon",
+                    "white_check_mark",
+                    "busts_in_silhouette",
+                    "bust_in_silhouette",
+                    "star",
+                    "loudspeaker",
+                    "robot_face",
+                    "file_folder",
+                  ]
+                : []
+            }
           />
         );
       case SymbolMenuTabs.CustomEmoji:
