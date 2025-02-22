@@ -1,6 +1,5 @@
-import { ApiMessageEntityTypes } from "../../../api/types";
 import type { FC } from "../../../lib/teact/teact";
-import React from "../../../lib/teact/teact";
+import React, { useState } from "../../../lib/teact/teact";
 
 import buildClassName from "../../../util/buildClassName";
 import { renderTextWithEntities } from "../../common/helpers/renderTextWithEntities";
@@ -23,54 +22,93 @@ type OwnProps = {
   onClick?: (name: string) => any;
 };
 
-const ICONS = {
-  // Emoji
-  "\uD83E\uDD16": <BotIcon />,
-  "\uD83D\uDCE2": <ChannelIcon />,
-  "✅": <ChatIcon />,
-  "\uD83D\uDCAC": <ChatsIcon />,
-  "\uD83D\uDCC1": <FolderDefaultIcon />,
-  "\uD83D\uDC65": <GroupIcon />,
-  "⭐": <StarIcon />,
-  "\uD83D\uDC64": <UserIcon />,
-
-  // Emoji Name
-  "robot_face": <BotIcon />,
-  "loudspeaker": <ChannelIcon />,
-  "white_check_mark": <ChatIcon />,
-  "speech_balloon": <ChatsIcon />,
-  "file_folder": <FolderDefaultIcon />,
-  "busts_in_silhouette": <GroupIcon />,
-  "star": <StarIcon />,
-  "bust_in_silhouette": <UserIcon />,
-} as any;
+const ICONS = [
+  "\uD83E\uDD16",
+  "\uD83D\uDCE2",
+  "✅",
+  "\uD83D\uDCAC",
+  "\uD83D\uDCC1",
+  "\uD83D\uDC65",
+  "⭐",
+  "\uD83D\uDC64",
+  "robot_face",
+  "loudspeaker",
+  "white_check_mark",
+  "speech_balloon",
+  "file_folder",
+  "busts_in_silhouette",
+  "star",
+  "bust_in_silhouette",
+];
 
 const FolderIcon: FC<OwnProps> = ({
   name,
   isAllFolder = false,
   isPicker = false,
   documentId,
-  onClick,
+  onClick = () => {},
 }) => {
-  const Icon = isAllFolder ? (
-    <ChatsIcon />
-  ) : !name ? (
-    <FolderDefaultIcon />
-    ) : (
-    ICONS[name] ||
-    renderTextWithEntities({
+  function renderContent() {
+    switch (name) {
+      // Emoji
+      case "\uD83E\uDD16":
+        return <BotIcon />;
+      case "\uD83D\uDCE2":
+        return <ChannelIcon />;
+      case "✅":
+        return <ChatIcon />;
+      case "\uD83D\uDCAC":
+        return <ChatsIcon />;
+      case "\uD83D\uDCC1":
+        return <FolderDefaultIcon />;
+      case "\uD83D\uDC65":
+        return <GroupIcon />;
+      case "⭐":
+        return <StarIcon />;
+      case "\uD83D\uDC64":
+        return <UserIcon />;
+
+      // Emoji Name
+      case "robot_face":
+        return <BotIcon />;
+      case "loudspeaker":
+        return <ChannelIcon />;
+      case "white_check_mark":
+        return <ChatIcon />;
+      case "speech_balloon":
+        return <ChatsIcon />;
+      case "file_folder":
+        return <FolderDefaultIcon />;
+      case "busts_in_silhouette":
+        return <GroupIcon />;
+      case "star":
+        return <StarIcon />;
+      case "bust_in_silhouette":
+        return <UserIcon />;
+    }
+
+    return renderTextWithEntities({
       text: name,
       entities: [],
       emojiSize: 80,
-    })
-  );
+    });
+  }
 
   return (
     <div
-      className={buildClassName("ChatFolder-icon", name in ICONS && "default")}
+      className={buildClassName(
+        "ChatFolder-icon",
+        ICONS.includes(name) && "default"
+      )}
       onClick={() => onClick?.(name)}
     >
-      {Icon}
+      {isAllFolder ? (
+        <ChatsIcon />
+      ) : !name ? (
+        <FolderDefaultIcon />
+      ) : (
+        renderContent()
+      )}
     </div>
   );
 };

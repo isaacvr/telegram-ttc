@@ -175,6 +175,7 @@ const SymbolMenuButton: FC<OwnProps> = ({
           onClick={isSymbolMenuOpen ? closeSymbolMenu : handleSymbolMenuOpen}
           ariaLabel="Choose emoji, sticker or GIF"
         >
+          <div ref={triggerRef} className="symbol-menu-trigger" />
           {chatId.startsWith("--folder") && state?.mode === "edit" ? (
             <FolderIcon
               name={state?.folder.emoticon || ""}

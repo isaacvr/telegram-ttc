@@ -78,6 +78,7 @@ type StateProps = {
   isClosingSearch?: boolean;
   archiveSettings: GlobalState["archiveSettings"];
   isArchivedStoryRibbonShown?: boolean;
+  haveFolders?: boolean;
 };
 
 enum ContentType {
@@ -93,9 +94,6 @@ enum ContentType {
 
 const RENDER_COUNT = Object.keys(ContentType).length / 2;
 const RESET_TRANSITION_DELAY_MS = 250;
-const BUTTON_CLOSE_DELAY_MS = 250;
-
-let closeTimeout: number | undefined;
 
 function LeftColumn({
   ref,
@@ -115,6 +113,7 @@ function LeftColumn({
   isClosingSearch,
   archiveSettings,
   isArchivedStoryRibbonShown,
+  haveFolders,
 }: OwnProps & StateProps) {
   const {
     setGlobalSearchQuery,
@@ -521,20 +520,12 @@ function LeftColumn({
   const { isMobile } = useAppLayout();
   const isFullscreen = useFullscreenStatus();
   const oldLang = useOldLang();
-  const isMouseInside = useRef(false);
-  const [isNewChatButtonShown, setIsNewChatButtonShown] =
-    useState(IS_TOUCH_ENV);
   const versionString = IS_BETA
     ? `${APP_VERSION} Beta (${APP_REVISION})`
     : DEBUG
     ? APP_REVISION
     : APP_VERSION;
-  const {
-    // shouldRenderForumPanel,
-    // handleForumPanelAnimationEnd,
-    // handleForumPanelAnimationStart,
-    isAnimationStarted,
-  } = useForumPanelRender(isForumPanelOpen);
+  const { isAnimationStarted } = useForumPanelRender(isForumPanelOpen);
   const isForumPanelRendered =
     isForumPanelOpen && content === LeftColumnContent.ChatList;
   const isForumPanelVisible = isForumPanelRendered && isAnimationStarted;
@@ -546,29 +537,6 @@ function LeftColumn({
     shouldDisableDropdownMenuTransitionRef,
     handleDropdownMenuTransitionEnd,
   } = useLeftHeaderButtonRtlForumTransition(isForumPanelVisible);
-
-  const handleMouseEnter = useLastCallback(() => {
-    if (content !== LeftColumnContent.ChatList) {
-      return;
-    }
-    isMouseInside.current = true;
-    setIsNewChatButtonShown(true);
-  });
-
-  const handleMouseLeave = useLastCallback(() => {
-    isMouseInside.current = false;
-
-    if (closeTimeout) {
-      clearTimeout(closeTimeout);
-      closeTimeout = undefined;
-    }
-
-    closeTimeout = window.setTimeout(() => {
-      if (!isMouseInside.current) {
-        setIsNewChatButtonShown(false);
-      }
-    }, BUTTON_CLOSE_DELAY_MS);
-  });
 
   const MainButton: FC<{ onTrigger: () => void; isOpen?: boolean }> =
     useMemo(() => {
@@ -696,11 +664,7 @@ function LeftColumn({
   }
 
   return (
-    <div
-      id="LeftColumn"
-      onMouseEnter={!IS_TOUCH_ENV ? handleMouseEnter : undefined}
-      onMouseLeave={!IS_TOUCH_ENV ? handleMouseLeave : undefined}
-    >
+    <div id="LeftColumn" className={haveFolders ? "" : "no-folders"}>
       <DropdownMenu
         trigger={MainButton}
         footer={`${APP_NAME} ${versionString}`}
@@ -798,6 +762,9 @@ export default memo(
       isClosingSearch: tabState.globalSearch.isClosing,
       archiveSettings,
       isArchivedStoryRibbonShown: isArchivedRibbonShown,
+      haveFolders:
+        global.chatFolders.orderedIds &&
+        global.chatFolders.orderedIds.length > 1,
     };
   })(LeftColumn)
 );

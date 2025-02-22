@@ -88,6 +88,7 @@ const EmojiCategory: FC<OwnProps> = ({
 
           return category.id === FOLDER_SYMBOL_SET_ID ? (
             <FolderIcon
+              key={displayedEmoji.id}
               name={name}
               isPicker
               onClick={() => onEmojiSelect(displayedEmoji.native, displayedEmoji.id)}

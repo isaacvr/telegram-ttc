@@ -461,6 +461,8 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
               onRemoveSymbol={() => {}}
               onEmojiSelect={handleEmojiSelect}
               canSendPlainText={true}
+              canSendStickers={false}
+              canSendGifs={false}
               idPrefix={"folder-icon"}
               isAttachmentModal={true}
             />

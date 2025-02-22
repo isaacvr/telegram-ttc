@@ -11,6 +11,27 @@
     "dropdown left"
     "folders left";
 
+  &.no-folders {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    grid-template-areas:
+      "left"
+      "left";
+    width: 33vw;
+
+    & > .DropdownMenu {
+      display: none;
+    }
+
+    #FolderLeftColumn {
+      display: none;
+    }
+  }
+
+  &:not(.no-folders) .left-main-header-dropdown {
+    display: none;
+  }
+
   .DropdownMenuFiller {
     width: 2.5rem;
     height: 2.5rem;

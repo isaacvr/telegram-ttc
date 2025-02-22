@@ -208,8 +208,6 @@ const foldersReducer: StateReducer<FoldersState, FoldersActions> = (
     case 'editEmoji': {
       const { folder, folderId, chatFilter } = action.payload;
 
-      console.log("payload: ", action.payload);
-
       return {
         mode: 'edit',
         folderId,

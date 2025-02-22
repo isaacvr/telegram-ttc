@@ -15,13 +15,18 @@ import {
   selectCanSetPasscode,
   selectCurrentMessageList,
   selectIsCurrentUserPremium,
+  selectIsForumPanelOpen,
   selectTabState,
   selectTheme,
 } from "../../../global/selectors";
 import buildClassName from "../../../util/buildClassName";
 import captureEscKeyListener from "../../../util/captureEscKeyListener";
 import { formatDateToString } from "../../../util/dates/dateFormat";
-import { IS_APP } from "../../../util/windowEnvironment";
+import {
+  IS_APP,
+  IS_ELECTRON,
+  IS_MAC_OS,
+} from "../../../util/windowEnvironment";
 
 import useAppLayout from "../../../hooks/useAppLayout";
 import useConnectionStatus from "../../../hooks/useConnectionStatus";
@@ -40,6 +45,13 @@ import ShowTransition from "../../ui/ShowTransition";
 import ConnectionStatusOverlay from "../ConnectionStatusOverlay";
 
 import "./LeftMainHeader.scss";
+import DropdownMenu from "../../ui/DropdownMenu";
+import { APP_NAME, DEBUG, IS_BETA } from "../../../config";
+import LeftSideMenuItems from "./LeftSideMenuItems";
+import useForumPanelRender from "../../../hooks/useForumPanelRender";
+import useLeftHeaderButtonRtlForumTransition from "./hooks/useLeftHeaderButtonRtlForumTransition";
+import useFlag from "../../../hooks/useFlag";
+import { useFullscreenStatus } from "../../../hooks/window/useFullscreen";
 
 type OwnProps = {
   shouldHideSearch?: boolean;
@@ -60,6 +72,7 @@ type StateProps = {
   globalSearchChatId?: string;
   searchDate?: number;
   theme: ISettings["theme"];
+  isForumPanelOpen?: boolean;
   isMessageListOpen: boolean;
   isCurrentUserPremium?: boolean;
   isConnectionStatusMinimized: ISettings["isConnectionStatusMinimized"];
@@ -73,6 +86,7 @@ const CLEAR_CHAT_SEARCH_PARAM = { id: undefined };
 
 const LeftMainHeader: FC<OwnProps & StateProps> = ({
   shouldHideSearch,
+  shouldSkipTransition,
   content,
   contactsFilter,
   isClosingSearch,
@@ -83,6 +97,7 @@ const LeftMainHeader: FC<OwnProps & StateProps> = ({
   searchDate,
   theme,
   connectionState,
+  isForumPanelOpen,
   isSyncing,
   isFetchingDifference,
   isMessageListOpen,
@@ -92,6 +107,9 @@ const LeftMainHeader: FC<OwnProps & StateProps> = ({
   canSetPasscode,
   onSearchQuery,
   onReset,
+  onSelectArchived,
+  onSelectContacts,
+  onSelectSettings,
 }) => {
   const {
     setGlobalSearchDate,
@@ -99,6 +117,7 @@ const LeftMainHeader: FC<OwnProps & StateProps> = ({
     setGlobalSearchChatId,
     lockScreen,
     requestNextSettingsScreen,
+    closeForumPanel,
   } = getActions();
 
   const oldLang = useOldLang();
@@ -148,27 +167,53 @@ const LeftMainHeader: FC<OwnProps & StateProps> = ({
     )
   );
 
-  // const MainButton: FC<{ onTrigger: () => void; isOpen?: boolean }> = useMemo(() => {
-  //   return ({ onTrigger, isOpen }) => (
-  //     <Button
-  //       round
-  //       ripple={hasMenu && !isMobile}
-  //       size="smaller"
-  //       color="translucent"
-  //       className={isOpen ? 'active' : ''}
-  //       // eslint-disable-next-line react/jsx-no-bind
-  //       onClick={hasMenu ? onTrigger : () => onReset()}
-  //       ariaLabel={hasMenu ? oldLang('AccDescrOpenMenu2') : 'Return to chat list'}
-  //     >
-  //       <div className={buildClassName(
-  //         'animated-menu-icon',
-  //         !hasMenu && 'state-back',
-  //         shouldSkipTransition && 'no-animation',
-  //       )}
-  //       />
-  //     </Button>
-  //   );
-  // }, [hasMenu, isMobile, oldLang, onReset, shouldSkipTransition]);
+  const { isAnimationStarted } = useForumPanelRender(isForumPanelOpen);
+  const isForumPanelRendered =
+    isForumPanelOpen && content === LeftColumnContent.ChatList;
+  const isForumPanelVisible = isForumPanelRendered && isAnimationStarted;
+  const {
+    shouldDisableDropdownMenuTransitionRef,
+    handleDropdownMenuTransitionEnd,
+  } = useLeftHeaderButtonRtlForumTransition(isForumPanelVisible);
+  const [isBotMenuOpen, markBotMenuOpen, unmarkBotMenuOpen] = useFlag();
+  const isFullscreen = useFullscreenStatus();
+
+  const versionString = IS_BETA
+    ? `${APP_VERSION} Beta (${APP_REVISION})`
+    : DEBUG
+    ? APP_REVISION
+    : APP_VERSION;
+
+  const MainButton: FC<{ onTrigger: () => void; isOpen?: boolean }> =
+    useMemo(() => {
+      const hasMenu = !(
+        content === LeftColumnContent.GlobalSearch ||
+        content === LeftColumnContent.Contacts
+      );
+
+      return ({ onTrigger, isOpen }) => (
+        <Button
+          round
+          ripple={hasMenu && !isMobile}
+          size="smaller"
+          color="translucent"
+          className={isOpen ? "active" : ""}
+          // eslint-disable-next-line react/jsx-no-bind
+          onClick={hasMenu ? onTrigger : () => onReset()}
+          ariaLabel={
+            hasMenu ? oldLang("AccDescrOpenMenu2") : "Return to chat list"
+          }
+        >
+          <div
+            className={buildClassName(
+              "animated-menu-icon",
+              !hasMenu && "state-back",
+              shouldSkipTransition && "no-animation"
+            )}
+          />
+        </Button>
+      );
+    }, [content, isMobile, oldLang, onReset, shouldSkipTransition]);
 
   const handleSearchFocus = useLastCallback(() => {
     if (!searchQuery) {
@@ -257,7 +302,37 @@ const LeftMainHeader: FC<OwnProps & StateProps> = ({
         >
           <Icon name="arrow-left" />
         </Button>
-      ) : null}
+      ) : (
+        <DropdownMenu
+          trigger={MainButton}
+          footer={`${APP_NAME} ${versionString}`}
+          className={buildClassName(
+            "main-menu",
+            "left-main-header-dropdown",
+            oldLang.isRtl && "rtl",
+            isForumPanelVisible && oldLang.isRtl && "right-aligned",
+            shouldDisableDropdownMenuTransitionRef.current &&
+              oldLang.isRtl &&
+              "disable-transition"
+          )}
+          forceOpen={isBotMenuOpen}
+          positionX={isForumPanelVisible && oldLang.isRtl ? "right" : "left"}
+          transformOriginX={
+            IS_ELECTRON && IS_MAC_OS && !isFullscreen ? 90 : undefined
+          }
+          onTransitionEnd={
+            oldLang.isRtl ? handleDropdownMenuTransitionEnd : undefined
+          }
+        >
+          <LeftSideMenuItems
+            onSelectArchived={onSelectSettings}
+            onSelectContacts={onSelectContacts}
+            onSelectSettings={onSelectSettings}
+            onBotMenuOpened={markBotMenuOpen}
+            onBotMenuClosed={unmarkBotMenuOpen}
+          />
+        </DropdownMenu>
+      )}
       {oldLang.isRtl && <div className="DropdownMenuFiller" />}
       <SearchInput
         inputId="telegram-search-input"
@@ -333,6 +408,7 @@ export default memo(
     } = tabState.globalSearch;
     const { connectionState, isSyncing, isFetchingDifference } = global;
     const { isConnectionStatusMinimized } = global.settings.byKey;
+    const isForumPanelOpen = selectIsForumPanelOpen(global);
 
     return {
       searchQuery,
@@ -343,6 +419,7 @@ export default memo(
       searchDate: minDate,
       theme: selectTheme(global),
       connectionState,
+      isForumPanelOpen,
       isSyncing,
       isFetchingDifference,
       isMessageListOpen: Boolean(selectCurrentMessageList(global)),

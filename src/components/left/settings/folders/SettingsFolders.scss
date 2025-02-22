@@ -121,10 +121,14 @@
 .FolderName-container {
   position: relative;
 
-  & > :last-child {
+  & > .Button.folder-icon {
     position: absolute;
     right: 0.5rem;
     top: 50%;
     transform: translateY(-50%);
+  }
+
+  .SymbolMenu.mobile-menu {
+    transform: translate(0 calc(-1 * var(--symbol-menu-height))) !important;
   }
 }
